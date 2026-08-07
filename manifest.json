@@ -1,0 +1,57 @@
+{
+  "name": "나라예매",
+  "short_name": "나라예매",
+  "description": "영화·비행기·기차·버스를 한 곳에서 예매하세요",
+  "start_url": "/index.html",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#1a3a6b",
+  "theme_color": "#1a3a6b",
+  "lang": "ko",
+  "categories": ["travel", "entertainment"],
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "영화 예매",
+      "short_name": "영화",
+      "description": "영화 예매하기",
+      "url": "/movies.html",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "비행기 예매",
+      "short_name": "비행기",
+      "description": "항공권 예매하기",
+      "url": "/flights.html",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "기차 예매",
+      "short_name": "기차",
+      "description": "기차표 예매하기",
+      "url": "/trains.html",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "버스 예매",
+      "short_name": "버스",
+      "description": "버스표 예매하기",
+      "url": "/buses.html",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
+    }
+  ]
+}

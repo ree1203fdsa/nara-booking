@@ -1,8 +1,15 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="ko">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#1a3a6b">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="나라예매">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
   <title>회원가입 - 나라예매</title>
   <link rel="stylesheet" href="css/style.css">
   <style>
@@ -104,5 +111,5 @@
     }
   });
 </script>
-</body>
+<script>if('serviceWorker'in navigator)navigator.serviceWorker.register('/sw.js');</script></body>
 </html>
