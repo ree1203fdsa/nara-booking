@@ -1,0 +1,722 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>관리자 페이지 - 나라예매</title>
+  <link rel="stylesheet" href="css/style.css">
+  <style>
+    .admin-tabs {
+      display: flex;
+      gap: 0;
+      border-bottom: 2px solid var(--border);
+      margin-bottom: 24px;
+    }
+    .admin-tab {
+      padding: 10px 22px;
+      font-size: 0.92rem;
+      font-weight: 600;
+      cursor: pointer;
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      border-bottom: 3px solid transparent;
+      margin-bottom: -2px;
+      transition: all 0.15s;
+    }
+    .admin-tab.active { color: var(--primary-light); border-bottom-color: var(--primary-light); }
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+
+    .stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px; }
+    .stat-card {
+      background: white; border-radius: 10px; padding: 20px;
+      border: 1px solid var(--border); box-shadow: var(--shadow); text-align: center;
+    }
+    .stat-value { font-size: 2rem; font-weight: 800; color: var(--primary); }
+    .stat-label { font-size: 0.82rem; color: var(--text-muted); margin-top: 4px; }
+
+    .section-actions { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+    .section-actions h3 { font-size: 1.05rem; font-weight: 700; color: var(--primary); }
+
+    @media (max-width: 640px) {
+      .stats-row { grid-template-columns: repeat(2, 1fr); }
+      .admin-tab { padding: 8px 14px; font-size: 0.82rem; }
+    }
+  </style>
+</head>
+<body>
+<div id="header-wrap"></div>
+
+<div class="container">
+  <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:24px;">
+    <div>
+      <p class="page-title">⚙️ 관리자 페이지</p>
+      <p class="page-subtitle">예매 내역 및 항목을 관리하세요</p>
+    </div>
+  </div>
+
+  <!-- 탭 -->
+  <div class="admin-tabs">
+    <button class="admin-tab active" onclick="showTab('dashboard')">대시보드</button>
+    <button class="admin-tab" onclick="showTab('bookings')">예매 관리</button>
+    <button class="admin-tab" onclick="showTab('movies')">영화 관리</button>
+    <button class="admin-tab" onclick="showTab('flights')">비행기 관리</button>
+    <button class="admin-tab" onclick="showTab('trains')">기차 관리</button>
+    <button class="admin-tab" onclick="showTab('buses')">버스 관리</button>
+    <button class="admin-tab" onclick="showTab('users')">회원 관리</button>
+    <button class="admin-tab" onclick="showTab('notices')">📢 공지사항</button>
+  </div>
+
+  <!-- 대시보드 -->
+  <div id="tab-dashboard" class="tab-panel active">
+    <div class="stats-row" id="stats-row">
+      <div class="stat-card"><div class="stat-value" id="s-total">-</div><div class="stat-label">전체 예매</div></div>
+      <div class="stat-card"><div class="stat-value" id="s-movie">-</div><div class="stat-label">🎬 영화</div></div>
+      <div class="stat-card"><div class="stat-value" id="s-flight">-</div><div class="stat-label">✈️ 비행기</div></div>
+      <div class="stat-card"><div class="stat-value" id="s-train">-</div><div class="stat-label">🚄 기차+🚌 버스</div></div>
+    </div>
+
+    <!-- 인기 노선 통계 차트 -->
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:20px; margin-bottom:20px;">
+      <div class="card">
+        <h3 style="font-size:1rem;font-weight:700;color:var(--primary);margin-bottom:16px;">📊 카테고리별 예매 비율</h3>
+        <canvas id="chart-type" height="220"></canvas>
+      </div>
+      <div class="card">
+        <h3 style="font-size:1rem;font-weight:700;color:var(--primary);margin-bottom:16px;">🏆 인기 노선 Top 5</h3>
+        <canvas id="chart-routes" height="220"></canvas>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3 style="font-size:1rem; font-weight:700; color:var(--primary); margin-bottom:16px;">최근 예매 내역 (10건)</h3>
+      <div id="recent-bookings"><div class="loading"><div class="spinner"></div></div></div>
+    </div>
+  </div>
+
+  <!-- 예매 관리 -->
+  <div id="tab-bookings" class="tab-panel">
+    <div class="section-actions">
+      <h3>전체 예매 내역</h3>
+      <div style="display:flex; gap:8px;">
+        <select id="filter-type" onchange="renderBookings()" style="padding:6px 12px; border:1.5px solid var(--border); border-radius:8px; font-size:0.88rem;">
+          <option value="">전체</option>
+          <option value="movie">영화</option>
+          <option value="flight">비행기</option>
+          <option value="train">기차</option>
+          <option value="bus">버스</option>
+        </select>
+        <select id="filter-status" onchange="renderBookings()" style="padding:6px 12px; border:1.5px solid var(--border); border-radius:8px; font-size:0.88rem;">
+          <option value="">전체 상태</option>
+          <option value="예매완료">예매완료</option>
+          <option value="취소됨">취소됨</option>
+        </select>
+      </div>
+    </div>
+    <div class="card table-wrap" id="bookings-table">
+      <div class="loading"><div class="spinner"></div></div>
+    </div>
+  </div>
+
+  <!-- 영화 관리 -->
+  <div id="tab-movies" class="tab-panel">
+    <div class="section-actions">
+      <h3>영화 목록</h3>
+      <button class="btn btn-accent btn-sm" onclick="openAddModal('movie')">+ 영화 추가</button>
+    </div>
+    <div class="card table-wrap" id="movies-table"></div>
+  </div>
+
+  <!-- 비행기 관리 -->
+  <div id="tab-flights" class="tab-panel">
+    <div class="section-actions">
+      <h3>항공편 목록</h3>
+      <button class="btn btn-accent btn-sm" onclick="openAddModal('flight')">+ 항공편 추가</button>
+    </div>
+    <div class="card table-wrap" id="flights-table"></div>
+  </div>
+
+  <!-- 기차 관리 -->
+  <div id="tab-trains" class="tab-panel">
+    <div class="section-actions">
+      <h3>기차편 목록</h3>
+      <button class="btn btn-accent btn-sm" onclick="openAddModal('train')">+ 기차편 추가</button>
+    </div>
+    <div class="card table-wrap" id="trains-table"></div>
+  </div>
+
+  <!-- 버스 관리 -->
+  <div id="tab-buses" class="tab-panel">
+    <div class="section-actions">
+      <h3>버스 목록</h3>
+      <button class="btn btn-accent btn-sm" onclick="openAddModal('bus')">+ 버스 추가</button>
+    </div>
+    <div class="card table-wrap" id="buses-table"></div>
+  </div>
+
+  <!-- 회원 관리 -->
+  <div id="tab-users" class="tab-panel">
+    <div class="section-actions"><h3>회원 목록</h3></div>
+    <div class="card table-wrap" id="users-table"></div>
+  </div>
+
+  <!-- 공지사항 관리 -->
+  <div id="tab-notices" class="tab-panel">
+    <div class="section-actions">
+      <h3>공지사항</h3>
+      <button class="btn btn-accent btn-sm" onclick="openNoticeModal()">+ 공지 작성</button>
+    </div>
+    <div id="notices-list"><div class="loading"><div class="spinner"></div></div></div>
+  </div>
+</div>
+
+<!-- 추가/수정 모달 -->
+<div class="modal-overlay" id="add-modal">
+  <div class="modal" style="max-width:520px;">
+    <div class="modal-header">
+      <span class="modal-title" id="add-modal-title">항목 추가</span>
+      <button class="modal-close" onclick="closeAddModal()">✕</button>
+    </div>
+    <div id="add-modal-body"></div>
+    <div id="add-modal-alert" style="margin-top:10px;"></div>
+    <div style="display:flex; gap:10px; margin-top:20px;">
+      <button class="btn btn-outline" style="flex:1;" onclick="closeAddModal()">취소</button>
+      <button class="btn btn-primary" style="flex:1;" id="add-confirm-btn" onclick="submitAdd()">저장</button>
+    </div>
+  </div>
+</div>
+
+<!-- 삭제 확인 모달 -->
+<div class="modal-overlay" id="del-modal">
+  <div class="modal" style="max-width:360px;">
+    <div class="modal-header">
+      <span class="modal-title">삭제 확인</span>
+      <button class="modal-close" onclick="document.getElementById('del-modal').classList.remove('open')">✕</button>
+    </div>
+    <p style="color:var(--text-muted); font-size:0.9rem; margin-bottom:20px;">정말로 이 항목을 삭제하시겠습니까?</p>
+    <div style="display:flex; gap:10px;">
+      <button class="btn btn-outline" style="flex:1;" onclick="document.getElementById('del-modal').classList.remove('open')">취소</button>
+      <button class="btn btn-danger" style="flex:1;" id="del-confirm-btn">삭제</button>
+    </div>
+  </div>
+</div>
+
+<script src="js/config.js"></script>
+<script>
+  document.getElementById('header-wrap').innerHTML = renderHeader('admin');
+
+  // 관리자 권한 체크
+  const user = getUser();
+  if (!user || !user.isAdmin) window.location.href = 'index.html';
+
+  let allData = { bookings: {}, movies: {}, flights: {}, trains: {}, buses: {}, users: {} };
+  let addMode = null; // { type, key } key=null이면 추가
+
+  async function loadAll() {
+    const [bookings, movies, flights, trains, buses, users] = await Promise.all([
+      dbGet('bookings'), dbGet('movies'), dbGet('flights'),
+      dbGet('trains'), dbGet('buses'), dbGet('users')
+    ]);
+    allData = {
+      bookings: bookings || {},
+      movies: movies || {},
+      flights: flights || {},
+      trains: trains || {},
+      buses: buses || {},
+      users: users || {}
+    };
+    updateStats();
+    renderRecent();
+    renderBookings();
+    renderMovies();
+    renderFlights();
+    renderTrains();
+    renderBuses();
+    renderUsers();
+  }
+
+  function updateStats() {
+    const bs = Object.values(allData.bookings).filter(b => b.status !== '취소됨');
+    document.getElementById('s-total').textContent = bs.length;
+    document.getElementById('s-movie').textContent = bs.filter(b => b.type === 'movie').length;
+    document.getElementById('s-flight').textContent = bs.filter(b => b.type === 'flight').length;
+    document.getElementById('s-train').textContent = bs.filter(b => b.type === 'train' || b.type === 'bus').length;
+  }
+
+  function renderRecent() {
+    const list = Object.entries(allData.bookings)
+      .sort((a, b) => b[1].bookedAt - a[1].bookedAt).slice(0, 10);
+    if (!list.length) { document.getElementById('recent-bookings').innerHTML = '<p style="color:var(--text-muted);text-align:center;padding:20px;">예매 내역이 없습니다.</p>'; return; }
+    let html = '<table><thead><tr><th>유형</th><th>사용자</th><th>내역</th><th>좌석</th><th>금액</th><th>상태</th><th>예매일</th></tr></thead><tbody>';
+    for (const [, b] of list) {
+      const tl = TYPE_LABELS[b.type] || {};
+      html += `<tr>
+        <td><span class="badge ${tl.color}">${tl.icon} ${tl.label}</span></td>
+        <td>${b.userName}</td>
+        <td>${b.title}</td>
+        <td>${b.seat}</td>
+        <td>₩${b.price.toLocaleString()}</td>
+        <td><span class="badge ${b.status === '취소됨' ? 'badge-red' : 'badge-green'}">${b.status}</span></td>
+        <td style="white-space:nowrap;">${formatDateTime(b.bookedAt)}</td>
+      </tr>`;
+    }
+    html += '</tbody></table>';
+    document.getElementById('recent-bookings').innerHTML = html;
+  }
+
+  function renderBookings() {
+    const typeFilter = document.getElementById('filter-type')?.value || '';
+    const statusFilter = document.getElementById('filter-status')?.value || '';
+    const list = Object.entries(allData.bookings)
+      .filter(([, b]) => (!typeFilter || b.type === typeFilter) && (!statusFilter || b.status === statusFilter))
+      .sort((a, b) => b[1].bookedAt - a[1].bookedAt);
+    if (!list.length) { document.getElementById('bookings-table').innerHTML = '<p style="color:var(--text-muted);text-align:center;padding:30px;">결과가 없습니다.</p>'; return; }
+    let html = '<table><thead><tr><th>유형</th><th>사용자</th><th>내역</th><th>날짜</th><th>좌석</th><th>금액</th><th>상태</th><th>예매일</th><th>관리</th></tr></thead><tbody>';
+    for (const [key, b] of list) {
+      const tl = TYPE_LABELS[b.type] || {};
+      const dateInfo = b.type === 'movie' ? b.time : (b.date + ' ' + b.depart);
+      html += `<tr>
+        <td><span class="badge ${tl.color}">${tl.icon} ${tl.label}</span></td>
+        <td>${b.userName}</td>
+        <td>${b.title}</td>
+        <td style="white-space:nowrap;">${dateInfo}</td>
+        <td>${b.seat}</td>
+        <td>₩${b.price.toLocaleString()}</td>
+        <td><span class="badge ${b.status === '취소됨' ? 'badge-red' : 'badge-green'}">${b.status}</span></td>
+        <td style="white-space:nowrap;font-size:0.8rem;">${formatDateTime(b.bookedAt)}</td>
+        <td>
+          ${b.status !== '취소됨' ? `<button class="btn btn-danger btn-sm" onclick="cancelBooking('${key}')">취소</button>` : ''}
+          <button class="btn btn-outline btn-sm" style="margin-left:4px;" onclick="deleteBooking('${key}')">삭제</button>
+        </td>
+      </tr>`;
+    }
+    html += '</tbody></table>';
+    document.getElementById('bookings-table').innerHTML = html;
+  }
+
+  async function cancelBooking(key) {
+    if (!confirm('이 예매를 취소 처리하시겠습니까?')) return;
+    await dbSet(`bookings/${key}/status`, '취소됨');
+    allData.bookings[key].status = '취소됨';
+    updateStats(); renderRecent(); renderBookings();
+  }
+
+  function deleteBooking(key) {
+    const modal = document.getElementById('del-modal');
+    modal.classList.add('open');
+    document.getElementById('del-confirm-btn').onclick = async () => {
+      await dbDelete(`bookings/${key}`);
+      delete allData.bookings[key];
+      modal.classList.remove('open');
+      updateStats(); renderRecent(); renderBookings();
+    };
+  }
+
+  // ===== 영화 =====
+  function renderMovies() {
+    const list = Object.entries(allData.movies);
+    if (!list.length) { document.getElementById('movies-table').innerHTML = '<p style="color:var(--text-muted);text-align:center;padding:30px;">등록된 영화가 없습니다.</p>'; return; }
+    let html = '<table><thead><tr><th>제목</th><th>장르</th><th>상영시간</th><th>관</th><th>상영시간표</th><th>가격</th><th>좌석수</th><th>관리</th></tr></thead><tbody>';
+    for (const [key, m] of list) {
+      html += `<tr>
+        <td><b>${m.poster} ${m.title}</b></td>
+        <td>${m.genre}</td>
+        <td>${m.duration}분</td>
+        <td>${m.theater}</td>
+        <td style="font-size:0.8rem;">${m.times.join(', ')}</td>
+        <td>₩${m.price.toLocaleString()}</td>
+        <td>${m.seats}석</td>
+        <td style="white-space:nowrap;">
+          <button class="btn btn-outline btn-sm" onclick="openEditModal('movie','${key}')">수정</button>
+          <button class="btn btn-danger btn-sm" onclick="deleteItem('movies','${key}')" style="margin-left:4px;">삭제</button>
+        </td>
+      </tr>`;
+    }
+    html += '</tbody></table>';
+    document.getElementById('movies-table').innerHTML = html;
+  }
+
+  // ===== 비행기 =====
+  function renderFlights() {
+    const list = Object.entries(allData.flights);
+    if (!list.length) { document.getElementById('flights-table').innerHTML = '<p style="color:var(--text-muted);text-align:center;padding:30px;">등록된 항공편이 없습니다.</p>'; return; }
+    let html = '<table><thead><tr><th>항공사</th><th>출발</th><th>도착</th><th>날짜</th><th>시간</th><th>가격</th><th>좌석</th><th>관리</th></tr></thead><tbody>';
+    for (const [key, f] of list) {
+      html += `<tr>
+        <td>${f.airline}</td>
+        <td>${f.from}</td>
+        <td>${f.to}</td>
+        <td>${f.date}</td>
+        <td>${f.depart}~${f.arrive}</td>
+        <td>₩${f.price.toLocaleString()}</td>
+        <td>${f.seats}석</td>
+        <td style="white-space:nowrap;">
+          <button class="btn btn-outline btn-sm" onclick="openEditModal('flight','${key}')">수정</button>
+          <button class="btn btn-danger btn-sm" onclick="deleteItem('flights','${key}')" style="margin-left:4px;">삭제</button>
+        </td>
+      </tr>`;
+    }
+    html += '</tbody></table>';
+    document.getElementById('flights-table').innerHTML = html;
+  }
+
+  // ===== 기차 =====
+  function renderTrains() {
+    const list = Object.entries(allData.trains);
+    if (!list.length) { document.getElementById('trains-table').innerHTML = '<p style="color:var(--text-muted);text-align:center;padding:30px;">등록된 기차편이 없습니다.</p>'; return; }
+    let html = '<table><thead><tr><th>열차번호</th><th>유형</th><th>출발</th><th>도착</th><th>날짜</th><th>시간</th><th>가격</th><th>좌석</th><th>관리</th></tr></thead><tbody>';
+    for (const [key, t] of list) {
+      html += `<tr>
+        <td>${t.number}</td>
+        <td><span class="badge badge-blue">${t.type}</span></td>
+        <td>${t.from}</td>
+        <td>${t.to}</td>
+        <td>${t.date}</td>
+        <td>${t.depart}~${t.arrive}</td>
+        <td>₩${t.price.toLocaleString()}</td>
+        <td>${t.seats}석</td>
+        <td style="white-space:nowrap;">
+          <button class="btn btn-outline btn-sm" onclick="openEditModal('train','${key}')">수정</button>
+          <button class="btn btn-danger btn-sm" onclick="deleteItem('trains','${key}')" style="margin-left:4px;">삭제</button>
+        </td>
+      </tr>`;
+    }
+    html += '</tbody></table>';
+    document.getElementById('trains-table').innerHTML = html;
+  }
+
+  // ===== 버스 =====
+  function renderBuses() {
+    const list = Object.entries(allData.buses);
+    if (!list.length) { document.getElementById('buses-table').innerHTML = '<p style="color:var(--text-muted);text-align:center;padding:30px;">등록된 버스가 없습니다.</p>'; return; }
+    let html = '<table><thead><tr><th>회사</th><th>유형</th><th>출발</th><th>도착</th><th>날짜</th><th>시간</th><th>가격</th><th>좌석</th><th>관리</th></tr></thead><tbody>';
+    for (const [key, b] of list) {
+      html += `<tr>
+        <td>${b.company}</td>
+        <td><span class="badge badge-gray">${b.type}</span></td>
+        <td>${b.from}</td>
+        <td>${b.to}</td>
+        <td>${b.date}</td>
+        <td>${b.depart}~${b.arrive}</td>
+        <td>₩${b.price.toLocaleString()}</td>
+        <td>${b.seats}석</td>
+        <td style="white-space:nowrap;">
+          <button class="btn btn-outline btn-sm" onclick="openEditModal('bus','${key}')">수정</button>
+          <button class="btn btn-danger btn-sm" onclick="deleteItem('buses','${key}')" style="margin-left:4px;">삭제</button>
+        </td>
+      </tr>`;
+    }
+    html += '</tbody></table>';
+    document.getElementById('buses-table').innerHTML = html;
+  }
+
+  // ===== 회원 (나라게임 users 구조: key=아이디, password/money/level/dayN 등) =====
+  function renderUsers() {
+    const list = Object.entries(allData.users).filter(([, u]) => u && typeof u === 'object');
+    if (!list.length) { document.getElementById('users-table').innerHTML = '<p style="color:var(--text-muted);text-align:center;padding:30px;">가입된 회원이 없습니다.</p>'; return; }
+    // 예매수 집계 (userId = 게임 아이디 key)
+    const bookingCounts = {};
+    Object.values(allData.bookings).forEach(b => {
+      if (b && b.userId && b.status !== '취소됨') bookingCounts[b.userId] = (bookingCounts[b.userId] || 0) + 1;
+    });
+    let html = '<table><thead><tr><th>아이디</th><th>게임 머니</th><th>레벨</th><th>진행일</th><th>첫 로그인</th><th>예매수</th></tr></thead><tbody>';
+    for (const [key, u] of list) {
+      const firstLogin = u.achievements?.first_login;
+      html += `<tr>
+        <td><b>${key}</b></td>
+        <td>₩${(u.money || 0).toLocaleString()}</td>
+        <td>${u.level || 1}레벨</td>
+        <td>${u.dayN || 1}일차</td>
+        <td>${firstLogin ? formatDateTime(firstLogin) : '-'}</td>
+        <td>${bookingCounts[key] || 0}건</td>
+      </tr>`;
+    }
+    html += '</tbody></table>';
+    document.getElementById('users-table').innerHTML = html;
+  }
+
+  // ===== 항목 삭제 =====
+  function deleteItem(dbPath, key) {
+    const modal = document.getElementById('del-modal');
+    modal.classList.add('open');
+    document.getElementById('del-confirm-btn').onclick = async () => {
+      await dbDelete(`${dbPath}/${key}`);
+      delete allData[dbPath][key];
+      modal.classList.remove('open');
+      if (dbPath === 'movies') renderMovies();
+      else if (dbPath === 'flights') renderFlights();
+      else if (dbPath === 'trains') renderTrains();
+      else if (dbPath === 'buses') renderBuses();
+    };
+  }
+
+  // ===== 추가/수정 폼 =====
+  const FORMS = {
+    movie: (d) => `
+      <div class="form-row"><div class="form-group"><label>제목</label><input id="f-title" value="${d?.title||''}" placeholder="영화 제목"></div>
+      <div class="form-group"><label>이모지(포스터)</label><input id="f-poster" value="${d?.poster||'🎬'}" maxlength="2"></div></div>
+      <div class="form-row"><div class="form-group"><label>장르</label><input id="f-genre" value="${d?.genre||''}" placeholder="액션, 로맨스 등"></div>
+      <div class="form-group"><label>상영시간(분)</label><input id="f-duration" type="number" value="${d?.duration||120}"></div></div>
+      <div class="form-row"><div class="form-group"><label>상영관</label><input id="f-theater" value="${d?.theater||''}" placeholder="1관"></div>
+      <div class="form-group"><label>좌석수</label><input id="f-seats" type="number" value="${d?.seats||48}"></div></div>
+      <div class="form-group"><label>상영시간표 (쉼표 구분)</label><input id="f-times" value="${d?.times?.join(', ')||''}" placeholder="10:00, 13:30, 16:00"></div>
+      <div class="form-group"><label>티켓 가격</label><input id="f-price" type="number" value="${d?.price||12000}"></div>`,
+    flight: (d) => `
+      <div class="form-row"><div class="form-group"><label>항공사</label><input id="f-airline" value="${d?.airline||''}" placeholder="나라항공"></div>
+      <div class="form-group"><label>날짜</label><input id="f-date" type="date" value="${d?.date||''}"></div></div>
+      <div class="form-row"><div class="form-group"><label>출발지</label><input id="f-from" value="${d?.from||''}" placeholder="서울(GMP)"></div>
+      <div class="form-group"><label>도착지</label><input id="f-to" value="${d?.to||''}" placeholder="제주(CJU)"></div></div>
+      <div class="form-row"><div class="form-group"><label>출발시간</label><input id="f-depart" type="time" value="${d?.depart||''}"></div>
+      <div class="form-group"><label>도착시간</label><input id="f-arrive" type="time" value="${d?.arrive||''}"></div></div>
+      <div class="form-row"><div class="form-group"><label>좌석수</label><input id="f-seats" type="number" value="${d?.seats||60}"></div>
+      <div class="form-group"><label>좌석등급</label><input id="f-class" value="${d?.class||'이코노미'}" placeholder="이코노미/비즈니스"></div></div>
+      <div class="form-group"><label>가격</label><input id="f-price" type="number" value="${d?.price||89000}"></div>`,
+    train: (d) => `
+      <div class="form-row"><div class="form-group"><label>열차번호</label><input id="f-number" value="${d?.number||''}" placeholder="KTX 101"></div>
+      <div class="form-group"><label>유형</label><select id="f-type"><option ${d?.type==='KTX'?'selected':''}>KTX</option><option ${d?.type==='ITX'?'selected':''}>ITX</option><option ${d?.type==='무궁화'?'selected':''}>무궁화</option></select></div></div>
+      <div class="form-row"><div class="form-group"><label>날짜</label><input id="f-date" type="date" value="${d?.date||''}"></div>
+      <div class="form-group"><label>좌석수</label><input id="f-seats" type="number" value="${d?.seats||60}"></div></div>
+      <div class="form-row"><div class="form-group"><label>출발역</label><input id="f-from" value="${d?.from||''}" placeholder="서울"></div>
+      <div class="form-group"><label>도착역</label><input id="f-to" value="${d?.to||''}" placeholder="부산"></div></div>
+      <div class="form-row"><div class="form-group"><label>출발시간</label><input id="f-depart" type="time" value="${d?.depart||''}"></div>
+      <div class="form-group"><label>도착시간</label><input id="f-arrive" type="time" value="${d?.arrive||''}"></div></div>
+      <div class="form-group"><label>가격</label><input id="f-price" type="number" value="${d?.price||59800}"></div>`,
+    bus: (d) => `
+      <div class="form-row"><div class="form-group"><label>버스회사</label><input id="f-company" value="${d?.company||''}" placeholder="나라고속"></div>
+      <div class="form-group"><label>유형</label><select id="f-type"><option ${d?.type==='우등'?'selected':''}>우등</option><option ${d?.type==='일반'?'selected':''}>일반</option></select></div></div>
+      <div class="form-row"><div class="form-group"><label>날짜</label><input id="f-date" type="date" value="${d?.date||''}"></div>
+      <div class="form-group"><label>좌석수</label><input id="f-seats" type="number" value="${d?.seats||45}"></div></div>
+      <div class="form-row"><div class="form-group"><label>출발지</label><input id="f-from" value="${d?.from||''}" placeholder="서울(강남)"></div>
+      <div class="form-group"><label>도착지</label><input id="f-to" value="${d?.to||''}" placeholder="부산"></div></div>
+      <div class="form-row"><div class="form-group"><label>출발시간</label><input id="f-depart" type="time" value="${d?.depart||''}"></div>
+      <div class="form-group"><label>도착시간</label><input id="f-arrive" type="time" value="${d?.arrive||''}"></div></div>
+      <div class="form-group"><label>가격</label><input id="f-price" type="number" value="${d?.price||25000}"></div>`,
+  };
+
+  const TYPE_NAMES = { movie: '영화', flight: '항공편', train: '기차편', bus: '버스' };
+  const DB_PATHS = { movie: 'movies', flight: 'flights', train: 'trains', bus: 'buses' };
+
+  function openAddModal(type) {
+    addMode = { type, key: null };
+    document.getElementById('add-modal-title').textContent = `${TYPE_NAMES[type]} 추가`;
+    document.getElementById('add-modal-body').innerHTML = FORMS[type](null);
+    document.getElementById('add-modal-alert').innerHTML = '';
+    document.getElementById('add-modal').classList.add('open');
+  }
+
+  function openEditModal(type, key) {
+    const pathMap = { movie: 'movies', flight: 'flights', train: 'trains', bus: 'buses' };
+    const data = allData[pathMap[type]][key];
+    addMode = { type, key };
+    document.getElementById('add-modal-title').textContent = `${TYPE_NAMES[type]} 수정`;
+    document.getElementById('add-modal-body').innerHTML = FORMS[type](data);
+    document.getElementById('add-modal-alert').innerHTML = '';
+    document.getElementById('add-modal').classList.add('open');
+  }
+
+  function closeAddModal() {
+    document.getElementById('add-modal').classList.remove('open');
+    addMode = null;
+  }
+
+  function getVal(id) { return document.getElementById(id)?.value?.trim() || ''; }
+
+  async function submitAdd() {
+    const { type, key } = addMode;
+    const btn = document.getElementById('add-confirm-btn');
+    btn.textContent = '저장 중...'; btn.disabled = true;
+
+    let data = {};
+    try {
+      if (type === 'movie') {
+        data = {
+          title: getVal('f-title'), poster: getVal('f-poster') || '🎬',
+          genre: getVal('f-genre'), duration: +getVal('f-duration'),
+          theater: getVal('f-theater'), seats: +getVal('f-seats'),
+          times: getVal('f-times').split(',').map(t => t.trim()).filter(Boolean),
+          price: +getVal('f-price')
+        };
+        if (!data.title || !data.genre || !data.theater || !data.times.length) throw new Error('필수 항목을 모두 입력하세요.');
+      } else if (type === 'flight') {
+        data = { airline: getVal('f-airline'), date: getVal('f-date'), from: getVal('f-from'), to: getVal('f-to'), depart: getVal('f-depart'), arrive: getVal('f-arrive'), seats: +getVal('f-seats'), class: getVal('f-class'), price: +getVal('f-price') };
+        if (!data.airline || !data.date || !data.from || !data.to) throw new Error('필수 항목을 모두 입력하세요.');
+      } else if (type === 'train') {
+        data = { number: getVal('f-number'), type: getVal('f-type'), date: getVal('f-date'), from: getVal('f-from'), to: getVal('f-to'), depart: getVal('f-depart'), arrive: getVal('f-arrive'), seats: +getVal('f-seats'), price: +getVal('f-price') };
+        if (!data.number || !data.date || !data.from || !data.to) throw new Error('필수 항목을 모두 입력하세요.');
+      } else if (type === 'bus') {
+        data = { company: getVal('f-company'), type: getVal('f-type'), date: getVal('f-date'), from: getVal('f-from'), to: getVal('f-to'), depart: getVal('f-depart'), arrive: getVal('f-arrive'), seats: +getVal('f-seats'), price: +getVal('f-price') };
+        if (!data.company || !data.date || !data.from || !data.to) throw new Error('필수 항목을 모두 입력하세요.');
+      }
+
+      const dbPath = DB_PATHS[type];
+      if (key) {
+        await dbSet(`${dbPath}/${key}`, data);
+        allData[dbPath][key] = data;
+      } else {
+        const result = await dbPush(dbPath, data);
+        allData[dbPath][result.name] = data;
+      }
+      closeAddModal();
+      if (type === 'movie') renderMovies();
+      else if (type === 'flight') renderFlights();
+      else if (type === 'train') renderTrains();
+      else if (type === 'bus') renderBuses();
+    } catch (err) {
+      document.getElementById('add-modal-alert').innerHTML = `<div class="alert alert-error">${err.message}</div>`;
+    } finally {
+      btn.textContent = '저장'; btn.disabled = false;
+    }
+  }
+
+  // ===== 탭 전환 =====
+  function showTab(name) {
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('.admin-tab').forEach(b => b.classList.remove('active'));
+    document.getElementById(`tab-${name}`).classList.add('active');
+    event.target.classList.add('active');
+    if (name === 'notices') renderNotices();
+  }
+
+  // ===== 인기 노선 통계 차트 =====
+  let chartsDrawn = false;
+  function drawCharts() {
+    if (chartsDrawn) return;
+    chartsDrawn = true;
+    const bs = Object.values(allData.bookings).filter(b => b.status !== '취소됨');
+    const counts = { movie: 0, flight: 0, train: 0, bus: 0 };
+    const routeCounts = {};
+    bs.forEach(b => {
+      if (counts[b.type] !== undefined) counts[b.type]++;
+      const key = b.title || '-';
+      routeCounts[key] = (routeCounts[key] || 0) + 1;
+    });
+
+    // 도넛 차트
+    const ctx1 = document.getElementById('chart-type');
+    if (ctx1) new Chart(ctx1, {
+      type: 'doughnut',
+      data: {
+        labels: ['🎬 영화', '✈️ 비행기', '🚄 기차', '🚌 버스'],
+        datasets: [{ data: [counts.movie, counts.flight, counts.train, counts.bus], backgroundColor: ['#3b82f6','#f59e0b','#10b981','#6b7280'], borderWidth: 2 }]
+      },
+      options: { responsive: true, plugins: { legend: { position: 'bottom' } } }
+    });
+
+    // 인기 노선 바 차트 (Top 5)
+    const top5 = Object.entries(routeCounts).sort((a,b)=>b[1]-a[1]).slice(0,5);
+    const ctx2 = document.getElementById('chart-routes');
+    if (ctx2 && top5.length) new Chart(ctx2, {
+      type: 'bar',
+      data: {
+        labels: top5.map(([k])=>k.length>12?k.slice(0,12)+'…':k),
+        datasets: [{ label: '예매수', data: top5.map(([,v])=>v), backgroundColor: '#2557a7', borderRadius: 6 }]
+      },
+      options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } } }
+    });
+  }
+
+  // ===== 공지사항 =====
+  let allNotices = {};
+  let noticeEditKey = null;
+
+  async function renderNotices() {
+    document.getElementById('notices-list').innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+    try {
+      allNotices = await dbGet('notices') || {};
+      const list = Object.entries(allNotices).sort((a,b) => b[1].createdAt - a[1].createdAt);
+      if (!list.length) {
+        document.getElementById('notices-list').innerHTML = '<div class="empty-state"><div class="icon">📢</div><p>등록된 공지사항이 없습니다.</p></div>';
+        return;
+      }
+      let html = '<div style="display:flex;flex-direction:column;gap:12px;">';
+      for (const [key, n] of list) {
+        html += `<div class="card" style="padding:18px 20px;">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;">
+            <div style="flex:1;">
+              <div style="font-size:1rem;font-weight:700;margin-bottom:6px;">📢 ${n.title}</div>
+              ${n.content ? `<div style="font-size:.88rem;color:var(--text-muted);line-height:1.6;">${n.content}</div>` : ''}
+              <div style="font-size:.78rem;color:var(--text-muted);margin-top:8px;">${formatDateTime(n.createdAt)}</div>
+            </div>
+            <div style="display:flex;gap:6px;flex-shrink:0;">
+              <button class="btn btn-outline btn-sm" onclick="openNoticeModal('${key}')">수정</button>
+              <button class="btn btn-danger btn-sm" onclick="deleteNotice('${key}')">삭제</button>
+            </div>
+          </div>
+        </div>`;
+      }
+      html += '</div>';
+      document.getElementById('notices-list').innerHTML = html;
+    } catch { document.getElementById('notices-list').innerHTML = '<div class="alert alert-error">불러오기 실패</div>'; }
+  }
+
+  function openNoticeModal(key) {
+    noticeEditKey = key || null;
+    const n = key ? allNotices[key] : null;
+    document.getElementById('notice-modal-title').textContent = key ? '공지 수정' : '공지 작성';
+    document.getElementById('n-title').value = n ? n.title : '';
+    document.getElementById('n-content').value = n ? (n.content || '') : '';
+    document.getElementById('notice-alert').innerHTML = '';
+    document.getElementById('notice-modal').classList.add('open');
+  }
+
+  async function submitNotice() {
+    const title = document.getElementById('n-title').value.trim();
+    const content = document.getElementById('n-content').value.trim();
+    if (!title) { document.getElementById('notice-alert').innerHTML = '<div class="alert alert-error">제목을 입력하세요.</div>'; return; }
+    const btn = document.getElementById('notice-save-btn');
+    btn.textContent = '저장 중...'; btn.disabled = true;
+    try {
+      const data = { title, content, createdAt: noticeEditKey ? allNotices[noticeEditKey].createdAt : Date.now(), updatedAt: Date.now() };
+      if (noticeEditKey) { await dbSet(`notices/${noticeEditKey}`, data); allNotices[noticeEditKey] = data; }
+      else { const r = await dbPush('notices', data); allNotices[r.name] = data; }
+      document.getElementById('notice-modal').classList.remove('open');
+      renderNotices();
+    } catch { document.getElementById('notice-alert').innerHTML = '<div class="alert alert-error">저장 중 오류가 발생했습니다.</div>'; }
+    finally { btn.textContent = '저장'; btn.disabled = false; }
+  }
+
+  async function deleteNotice(key) {
+    if (!confirm('이 공지사항을 삭제하시겠습니까?')) return;
+    await dbDelete(`notices/${key}`);
+    delete allNotices[key];
+    renderNotices();
+  }
+
+  // 차트 데이터 준비 후 그리기
+  const _origLoadAll = loadAll;
+  async function loadAllWithCharts() {
+    await _origLoadAll.call(this);
+    setTimeout(drawCharts, 100);
+  }
+
+  loadAll();
+  setTimeout(drawCharts, 1500);
+</script>
+
+<!-- 공지사항 모달 -->
+<div class="modal-overlay" id="notice-modal">
+  <div class="modal" style="max-width:480px;">
+    <div class="modal-header">
+      <span class="modal-title" id="notice-modal-title">공지 작성</span>
+      <button class="modal-close" onclick="document.getElementById('notice-modal').classList.remove('open')">✕</button>
+    </div>
+    <div class="form-group">
+      <label>제목</label>
+      <input type="text" id="n-title" placeholder="공지 제목을 입력하세요" maxlength="100">
+    </div>
+    <div class="form-group">
+      <label>내용</label>
+      <textarea id="n-content" rows="4" placeholder="공지 내용을 입력하세요" style="width:100%;padding:10px 14px;border:1.5px solid var(--border);border-radius:8px;font-size:.95rem;resize:vertical;"></textarea>
+    </div>
+    <div id="notice-alert"></div>
+    <div style="display:flex;gap:10px;margin-top:16px;">
+      <button class="btn btn-outline" style="flex:1;" onclick="document.getElementById('notice-modal').classList.remove('open')">취소</button>
+      <button class="btn btn-primary" style="flex:1;" id="notice-save-btn" onclick="submitNotice()">저장</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+</body>
+</html>

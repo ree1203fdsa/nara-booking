@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>예매 확인 - 나라예매</title>
+  <link rel="stylesheet" href="css/style.css">
+  <style>
+    .ticket-wrap {
+      max-width: 480px;
+      margin: 32px auto;
+      padding: 0 16px;
+    }
+    .ticket {
+      background: white;
+      border-radius: 16px;
+      overflow: hidden;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.12);
+    }
+    .ticket-header {
+      background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%);
+      color: white;
+      padding: 28px 28px 20px;
+    }
+    .ticket-header .type-badge {
+      font-size: 0.8rem;
+      background: rgba(255,255,255,0.2);
+      padding: 4px 12px;
+      border-radius: 20px;
+      display: inline-block;
+      margin-bottom: 12px;
+    }
+    .ticket-header .title { font-size: 1.5rem; font-weight: 800; margin-bottom: 4px; }
+    .ticket-header .subtitle { font-size: 0.88rem; opacity: 0.85; }
+    .ticket-divider {
+      position: relative;
+      height: 24px;
+      background: var(--bg);
+    }
+    .ticket-divider::before, .ticket-divider::after {
+      content: '';
+      position: absolute;
+      width: 28px;
+      height: 28px;
+      background: var(--bg);
+      border-radius: 50%;
+      top: -14px;
+    }
+    .ticket-divider::before { left: -14px; }
+    .ticket-divider::after { right: -14px; }
+    .ticket-dashed {
+      position: absolute;
+      top: 50%;
+      left: 16px;
+      right: 16px;
+      border-top: 2px dashed var(--border);
+    }
+    .ticket-body { padding: 20px 28px 8px; }
+    .ticket-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 0;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.9rem;
+    }
+    .ticket-row:last-child { border-bottom: none; }
+    .ticket-row .label { color: var(--text-muted); font-size: 0.82rem; }
+    .ticket-row .value { font-weight: 600; }
+    .ticket-qr {
+      padding: 20px 28px 28px;
+      text-align: center;
+    }
+    .ticket-qr #qr-code {
+      display: inline-block;
+      padding: 12px;
+      background: white;
+      border: 2px solid var(--border);
+      border-radius: 12px;
+      margin-bottom: 8px;
+    }
+    .ticket-qr .qr-hint { font-size: 0.78rem; color: var(--text-muted); }
+    .ticket-status {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 14px 28px;
+      background: #f0fdf4;
+      border-top: 1px solid #bbf7d0;
+      font-size: 0.88rem;
+      color: #15803d;
+      font-weight: 600;
+    }
+    .money-info {
+      margin-top: 16px;
+      background: #fef9c3;
+      border: 1px solid #fde68a;
+      border-radius: 10px;
+      padding: 14px 18px;
+      font-size: 0.88rem;
+    }
+    .money-info .row { display: flex; justify-content: space-between; padding: 4px 0; }
+    .money-info .row .label { color: #92400e; }
+    .money-info .row .value { font-weight: 700; color: #78350f; }
+    .action-btns { display: flex; gap: 10px; margin-top: 20px; }
+  </style>
+</head>
+<body>
+<div id="header-wrap"></div>
+
+<div class="ticket-wrap">
+  <div id="loading" class="loading" style="margin-top:60px;">
+    <div class="spinner"></div>예매 정보를 불러오는 중...
+  </div>
+
+  <div id="ticket-area" style="display:none;">
+    <div class="ticket">
+      <div class="ticket-header">
+        <div class="type-badge" id="t-type"></div>
+        <div class="title" id="t-title"></div>
+        <div class="subtitle" id="t-subtitle"></div>
+      </div>
+      <div class="ticket-divider"><div class="ticket-dashed"></div></div>
+      <div class="ticket-body" id="t-body"></div>
+      <div class="ticket-qr">
+        <div id="qr-code"></div>
+        <div class="qr-hint">이 QR코드로 입장/탑승을 확인합니다</div>
+      </div>
+      <div class="ticket-status">✅ 예매가 완료되었습니다</div>
+    </div>
+
+    <div class="money-info" id="money-info" style="display:none;">
+      <div class="row"><span class="label">차감된 게임 머니</span><span class="value" id="m-spent"></span></div>
+      <div class="row"><span class="label">남은 잔액</span><span class="value" id="m-remain"></span></div>
+    </div>
+
+    <div class="action-btns">
+      <a href="mybookings.html" class="btn btn-outline" style="flex:1;">내 예매 보기</a>
+      <a href="index.html" class="btn btn-primary" style="flex:1;">홈으로</a>
+    </div>
+  </div>
+
+  <div id="error-area" style="display:none;" class="alert alert-error">
+    예매 정보를 불러오지 못했습니다.
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="js/config.js"></script>
+<script>
+  document.getElementById('header-wrap').innerHTML = renderHeader('');
+
+  const params = new URLSearchParams(location.search);
+  const bookingId = params.get('id');
+  const moneySpent = params.get('spent');
+  const moneyLeft  = params.get('left');
+
+  const TYPE_INFO = {
+    movie:  { icon: '🎬', label: '영화 티켓' },
+    flight: { icon: '✈️', label: '항공권' },
+    train:  { icon: '🚄', label: '기차 승차권' },
+    bus:    { icon: '🚌', label: '버스 승차권' },
+  };
+
+  async function load() {
+    if (!bookingId) { showError(); return; }
+    try {
+      const b = await dbGet(`bookings/${bookingId}`);
+      if (!b) { showError(); return; }
+
+      const ti = TYPE_INFO[b.type] || { icon: '🎫', label: '티켓' };
+      const tl = TYPE_LABELS[b.type] || {};
+
+      document.getElementById('t-type').textContent = `${ti.icon} ${ti.label}`;
+      document.getElementById('t-title').textContent = b.title;
+
+      let subtitle = '';
+      let bodyRows = '';
+
+      if (b.type === 'movie') {
+        subtitle = `${b.theater} · ${b.date || ''} ${b.time}`;
+        bodyRows = `
+          <div class="ticket-row"><span class="label">상영관</span><span class="value">${b.theater}</span></div>
+          <div class="ticket-row"><span class="label">날짜</span><span class="value">${b.date || '-'}</span></div>
+          <div class="ticket-row"><span class="label">상영시간</span><span class="value">${b.time}</span></div>
+          <div class="ticket-row"><span class="label">좌석</span><span class="value">${b.seat}</span></div>`;
+      } else if (b.type === 'flight') {
+        subtitle = `${b.airline} · ${b.date}`;
+        bodyRows = `
+          <div class="ticket-row"><span class="label">항공사</span><span class="value">${b.airline}</span></div>
+          <div class="ticket-row"><span class="label">날짜</span><span class="value">${b.date}</span></div>
+          <div class="ticket-row"><span class="label">시간</span><span class="value">${b.depart} → ${b.arrive}</span></div>
+          <div class="ticket-row"><span class="label">좌석</span><span class="value">${b.seat}</span></div>`;
+      } else if (b.type === 'train') {
+        subtitle = `${b.trainNumber} · ${b.date}`;
+        bodyRows = `
+          <div class="ticket-row"><span class="label">열차</span><span class="value">${b.trainNumber}</span></div>
+          <div class="ticket-row"><span class="label">날짜</span><span class="value">${b.date}</span></div>
+          <div class="ticket-row"><span class="label">시간</span><span class="value">${b.depart} → ${b.arrive}</span></div>
+          <div class="ticket-row"><span class="label">좌석</span><span class="value">${b.seat}</span></div>`;
+      } else if (b.type === 'bus') {
+        subtitle = `${b.company} ${b.busType} · ${b.date}`;
+        bodyRows = `
+          <div class="ticket-row"><span class="label">버스</span><span class="value">${b.company} ${b.busType}</span></div>
+          <div class="ticket-row"><span class="label">날짜</span><span class="value">${b.date}</span></div>
+          <div class="ticket-row"><span class="label">시간</span><span class="value">${b.depart} → ${b.arrive}</span></div>
+          <div class="ticket-row"><span class="label">좌석</span><span class="value">${b.seat}</span></div>`;
+      }
+
+      bodyRows += `
+        <div class="ticket-row"><span class="label">예매자</span><span class="value">${b.userName}</span></div>
+        <div class="ticket-row"><span class="label">결제 금액</span><span class="value" style="color:var(--primary-light);">₩${b.price.toLocaleString()}</span></div>
+        <div class="ticket-row"><span class="label">예매번호</span><span class="value" style="font-size:0.78rem; color:var(--text-muted);">${bookingId}</span></div>`;
+
+      document.getElementById('t-subtitle').textContent = subtitle;
+      document.getElementById('t-body').innerHTML = bodyRows;
+
+      new QRCode(document.getElementById('qr-code'), {
+        text: `NARA-TICKET:${bookingId}`,
+        width: 160,
+        height: 160,
+        colorDark: '#1a3a6b',
+        colorLight: '#ffffff',
+        correctLevel: QRCode.CorrectLevel.M
+      });
+
+      if (moneySpent && moneyLeft) {
+        const mInfo = document.getElementById('money-info');
+        mInfo.style.display = 'block';
+        document.getElementById('m-spent').textContent = `- ₩${Number(moneySpent).toLocaleString()}`;
+        document.getElementById('m-remain').textContent = `₩${Number(moneyLeft).toLocaleString()}`;
+      }
+
+      document.getElementById('loading').style.display = 'none';
+      document.getElementById('ticket-area').style.display = 'block';
+    } catch (e) {
+      showError();
+    }
+  }
+
+  function showError() {
+    document.getElementById('loading').style.display = 'none';
+    document.getElementById('error-area').style.display = 'block';
+  }
+
+  load();
+</script>
+</body>
+</html>

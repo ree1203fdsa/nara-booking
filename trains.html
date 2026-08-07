@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>기차 예매 - 나라예매</title>
+  <link rel="stylesheet" href="css/style.css">
+  <style>
+    .search-bar{background:white;border-radius:12px;padding:20px;box-shadow:var(--shadow);border:1px solid var(--border);margin-bottom:24px;display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;}
+    .search-bar .form-group{margin:0;flex:1;min-width:130px;}
+    .train-list{display:flex;flex-direction:column;gap:14px;}
+    .train-card{background:white;border-radius:12px;border:1.5px solid var(--border);padding:20px 24px;display:grid;grid-template-columns:90px 1fr auto 1fr auto auto auto;align-items:center;gap:14px;box-shadow:var(--shadow);transition:border-color .2s;}
+    .train-card:hover{border-color:var(--primary-light);}
+    .train-time{font-size:1.4rem;font-weight:800;color:var(--primary);}
+    .train-city{font-size:.82rem;color:var(--text-muted);}
+    .fav-btn{background:none;border:none;font-size:1.2rem;cursor:pointer;color:#ccc;padding:4px;transition:all .15s;}
+    .fav-btn.active{color:#e53e3e;}
+    .money-bar{background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:.85rem;display:flex;justify-content:space-between;align-items:center;}
+    .money-bar .label{color:#0369a1;} .money-bar .amount{font-weight:700;color:#0c4a6e;}
+    @media(max-width:640px){.train-card{grid-template-columns:1fr 1fr;}}
+  </style>
+</head>
+<body>
+<div id="header-wrap"></div>
+<div class="container">
+  <p class="page-title">🚄 기차 예매</p>
+  <p class="page-subtitle">KTX·ITX 기차표를 예매하세요</p>
+  <div class="search-bar">
+    <div class="form-group"><label>출발지</label>
+      <select id="s-from"><option value="">전체</option><option>서울</option><option>부산</option><option>강릉</option><option>광주</option></select></div>
+    <div class="form-group"><label>도착지</label>
+      <select id="s-to"><option value="">전체</option><option>부산</option><option>서울</option><option>강릉</option><option>광주</option></select></div>
+    <div class="form-group"><label>날짜</label><input type="date" id="s-date"></div>
+    <button class="btn btn-primary" onclick="filterTrains()">검색</button>
+  </div>
+  <div id="content"><div class="loading"><div class="spinner"></div>불러오는 중...</div></div>
+</div>
+
+<div class="modal-overlay" id="booking-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title">좌석 선택</span>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div id="modal-info" style="margin-bottom:12px;padding:12px;background:#f8fafc;border-radius:8px;font-size:.88rem;color:var(--text-muted);line-height:1.8;"></div>
+    <div class="money-bar"><span class="label">💰 내 게임 머니</span><span class="amount" id="user-money">조회 중...</span></div>
+    <p style="font-size:.85rem;font-weight:600;color:var(--text-muted);margin-bottom:8px;">좌석 선택</p>
+    <div class="seat-grid" id="seat-grid"></div>
+    <div class="seat-legend">
+      <div class="seat-legend-item"><div class="seat-legend-box"></div>선택 가능</div>
+      <div class="seat-legend-item"><div class="seat-legend-box selected"></div>선택됨</div>
+      <div class="seat-legend-item"><div class="seat-legend-box booked"></div>예매됨</div>
+    </div>
+    <div id="selected-info" style="margin-top:14px;padding:10px;background:#f0f7ff;border-radius:8px;font-size:.88rem;display:none;"></div>
+    <div id="alert-modal" style="margin-top:10px;"></div>
+    <div style="display:flex;gap:10px;margin-top:20px;">
+      <button class="btn btn-outline" style="flex:1;" onclick="closeModal()">취소</button>
+      <button class="btn btn-accent" style="flex:1;" id="confirm-btn" onclick="confirmBooking()">예매 확정</button>
+    </div>
+  </div>
+</div>
+
+<script src="js/config.js"></script>
+<script>
+  document.getElementById('header-wrap').innerHTML = renderHeader('trains');
+  let trains={}, bookedSeats={}, filtered={}, favorites={}, currentTrain=null, selectedSeat=null;
+  const TYPE_COLOR={KTX:'badge-blue',ITX:'badge-green','무궁화':'badge-gray'};
+
+  async function load() {
+    try {
+      trains=await dbGet('trains')||{};
+      const bookings=await dbGet('bookings')||{};
+      bookedSeats={};
+      Object.values(bookings).forEach(b=>{ if(b.type==='train'&&b.status!=='취소됨'){if(!bookedSeats[b.itemId])bookedSeats[b.itemId]=[];bookedSeats[b.itemId].push(b.seat);} });
+      const user=getUser(); if(user) favorites=await getFavorites(user.uid);
+      filtered={...trains}; render(filtered);
+    } catch { document.getElementById('content').innerHTML='<div class="alert alert-error">데이터를 불러오지 못했습니다.</div>'; }
+  }
+
+  function filterTrains(){
+    const from=document.getElementById('s-from').value,to=document.getElementById('s-to').value,date=document.getElementById('s-date').value;
+    filtered={};
+    for(const [id,t] of Object.entries(trains)){if(from&&t.from!==from)continue;if(to&&t.to!==to)continue;if(date&&t.date!==date)continue;filtered[id]=t;}
+    render(filtered);
+  }
+
+  function isFav(id){return !!(favorites.train&&favorites.train[id]);}
+
+  function dur(t){
+    const[dh,dm]=t.depart.split(':').map(Number),[ah,am]=t.arrive.split(':').map(Number);
+    const m=(ah*60+am)-(dh*60+dm); return `${Math.floor(m/60)}시간 ${m%60}분`;
+  }
+
+  function render(list){
+    if(!Object.keys(list).length){document.getElementById('content').innerHTML='<div class="empty-state"><div class="icon">🚄</div><p>검색 결과가 없습니다.</p></div>';return;}
+    let html='<div class="train-list">';
+    for(const [id,t] of Object.entries(list)){
+      const rem=t.seats-(bookedSeats[id]||[]).length, soldOut=rem<=0;
+      html+=`<div class="train-card">
+        <div><span class="badge ${TYPE_COLOR[t.type]||'badge-gray'}">${t.type}</span><div style="font-size:.78rem;color:var(--text-muted);margin-top:4px;">${t.number}</div></div>
+        <div><div class="train-time">${t.depart}</div><div class="train-city">${t.from}</div></div>
+        <div style="text-align:center;color:var(--text-muted);"><div style="font-size:.75rem;">${dur(t)}</div><div>→</div><div style="font-size:.75rem;">${t.date}</div></div>
+        <div><div class="train-time">${t.arrive}</div><div class="train-city">${t.to}</div></div>
+        <div>${seatBadge(rem,t.seats)}</div>
+        <div style="text-align:right;"><div style="font-size:1.2rem;font-weight:800;color:var(--primary);">₩${t.price.toLocaleString()}</div>
+          <button class="btn btn-accent btn-sm" style="margin-top:8px;" onclick="openModal('${id}')" ${soldOut?'disabled style="opacity:.5;"':''}>예매하기</button></div>
+        <button class="fav-btn ${isFav(id)?'active':''}" id="fav-train-${id}" onclick="doToggleFav('train','${id}',this)" title="찜">♥</button>
+      </div>`;
+    }
+    html+='</div>'; document.getElementById('content').innerHTML=html;
+  }
+
+  async function doToggleFav(type,id,btn){
+    const user=getUser(); if(!user){alert('로그인이 필요합니다.');return;}
+    btn.disabled=true;
+    try{const isNow=await toggleFavorite(user.uid,type,id);btn.classList.toggle('active',isNow);if(!favorites[type])favorites[type]={};if(isNow)favorites[type][id]={addedAt:Date.now()};else delete favorites[type][id];}
+    finally{btn.disabled=false;}
+  }
+
+  function openModal(id){
+    const user=getUser(); if(!user){if(confirm('로그인이 필요합니다.'))window.location.href='login.html';return;}
+    currentTrain=id; selectedSeat=null;
+    const t=trains[id];
+    document.getElementById('modal-info').innerHTML=`🚄 <b>${t.number}</b> &nbsp;|&nbsp; ${t.from} → ${t.to}<br>📅 ${t.date} &nbsp;|&nbsp; 🕐 ${t.depart}→${t.arrive} &nbsp;|&nbsp; 💰 ₩${t.price.toLocaleString()}`;
+    document.getElementById('selected-info').style.display='none';
+    document.getElementById('alert-modal').innerHTML='';
+    getUserMoney(user.uid).then(m=>{ document.getElementById('user-money').textContent=`₩${m.toLocaleString()}`; }).catch(()=>{});
+    renderSeats(id,t.seats);
+    document.getElementById('booking-modal').classList.add('open');
+  }
+
+  function renderSeats(id,total){
+    const taken=bookedSeats[id]||[],cols=4,rows=Math.ceil(total/cols);
+    let html='';
+    for(let r=0;r<rows;r++) for(let c=0;c<cols;c++){
+      const num=r*cols+c+1; if(num>total) break;
+      const label=`${num}호`,isBooked=taken.includes(label);
+      html+=`<div class="seat${isBooked?' booked':''}" onclick="selectSeat('${label}',this)" style="font-size:.55rem;">${label}</div>`;
+    }
+    document.getElementById('seat-grid').innerHTML=html;
+  }
+
+  function selectSeat(label,el){
+    if(el.classList.contains('booked')) return;
+    document.querySelectorAll('.seat.selected').forEach(s=>s.classList.remove('selected'));
+    el.classList.add('selected'); selectedSeat=label;
+    const t=trains[currentTrain];
+    const info=document.getElementById('selected-info'); info.style.display='block';
+    info.innerHTML=`선택 좌석: <b>${label}</b> &nbsp;|&nbsp; 결제: <b>₩${t.price.toLocaleString()}</b>`;
+  }
+
+  function closeModal(){document.getElementById('booking-modal').classList.remove('open');}
+
+  async function confirmBooking(){
+    if(!selectedSeat){document.getElementById('alert-modal').innerHTML='<div class="alert alert-error">좌석을 선택해 주세요.</div>';return;}
+    const user=getUser(),t=trains[currentTrain];
+    const btn=document.getElementById('confirm-btn'); btn.textContent='처리 중...'; btn.disabled=true;
+    try{
+      const money=await getUserMoney(user.uid);
+      if(money<t.price){document.getElementById('alert-modal').innerHTML=`<div class="alert alert-error">게임 머니 부족!<br>현재: ₩${money.toLocaleString()} / 필요: ₩${t.price.toLocaleString()}</div>`;return;}
+      const result=await dbPush('bookings',{type:'train',userId:user.uid,userName:user.name,itemId:currentTrain,title:`${t.from} → ${t.to}`,trainNumber:t.number,date:t.date,depart:t.depart,arrive:t.arrive,seat:selectedSeat,price:t.price,status:'예매완료',bookedAt:Date.now()});
+      const remaining=await deductMoney(user.uid,t.price);
+      window.location.href=`confirm.html?id=${result.name}&spent=${t.price}&left=${remaining}`;
+    } catch(e){document.getElementById('alert-modal').innerHTML=`<div class="alert alert-error">${e.message||'오류가 발생했습니다.'}</div>`;}
+    finally{btn.textContent='예매 확정';btn.disabled=false;}
+  }
+
+  load();
+</script>
+</body>
+</html>

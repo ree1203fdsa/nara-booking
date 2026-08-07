@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>영화 예매 - 나라예매</title>
+  <link rel="stylesheet" href="css/style.css">
+  <style>
+    .movie-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 20px; }
+    .movie-card {
+      background: white; border-radius: 12px; border: 1.5px solid var(--border);
+      overflow: hidden; box-shadow: var(--shadow); transition: transform .2s, box-shadow .2s; position: relative;
+    }
+    .movie-card:hover { transform: translateY(-3px); box-shadow: 0 8px 24px rgba(0,0,0,.12); }
+    .movie-poster {
+      background: linear-gradient(135deg, var(--primary), var(--primary-light));
+      height: 180px; display: flex; align-items: center; justify-content: center; font-size: 4rem;
+      position: relative;
+    }
+    .fav-btn {
+      position: absolute; top: 10px; right: 10px;
+      background: rgba(255,255,255,.85); border: none; border-radius: 50%;
+      width: 34px; height: 34px; font-size: 1.1rem; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      transition: all .15s; color: #ccc;
+    }
+    .fav-btn.active { color: #e53e3e; }
+    .fav-btn:hover { background: white; transform: scale(1.1); }
+    .movie-body { padding: 18px; }
+    .movie-title { font-size: 1.05rem; font-weight: 700; margin-bottom: 6px; }
+    .movie-meta { font-size: .82rem; color: var(--text-muted); margin-bottom: 10px; line-height: 1.6; }
+    .movie-price { font-size: 1rem; font-weight: 700; color: var(--primary-light); margin-bottom: 12px; }
+    .time-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+    .time-chip {
+      padding: 4px 10px; border-radius: 6px; font-size: .8rem; font-weight: 600;
+      background: #f0f7ff; color: var(--primary-light); border: 1px solid #bfdbfe;
+      cursor: pointer; transition: all .15s;
+    }
+    .time-chip:hover, .time-chip.selected { background: var(--primary-light); color: white; border-color: var(--primary-light); }
+    .money-bar {
+      background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 8px;
+      padding: 10px 14px; margin-bottom: 14px; font-size: .85rem;
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .money-bar .label { color: #0369a1; }
+    .money-bar .amount { font-weight: 700; color: #0c4a6e; }
+  </style>
+</head>
+<body>
+<div id="header-wrap"></div>
+<div class="container">
+  <p class="page-title">🎬 영화 예매</p>
+  <p class="page-subtitle">원하는 영화와 날짜·시간을 선택하세요</p>
+  <div id="content"><div class="loading"><div class="spinner"></div>불러오는 중...</div></div>
+</div>
+
+<!-- 예매 모달 -->
+<div class="modal-overlay" id="booking-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title" id="modal-title">좌석 선택</span>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div id="modal-info" style="margin-bottom:12px; padding:12px; background:#f8fafc; border-radius:8px; font-size:.88rem; color:var(--text-muted); line-height:1.7;"></div>
+
+    <!-- 날짜 선택 (날짜별 시간표) -->
+    <div class="form-group" style="margin-bottom:14px;">
+      <label>날짜 선택</label>
+      <input type="date" id="movie-date" onchange="onDateChange()">
+    </div>
+
+    <div class="money-bar">
+      <span class="label">💰 내 게임 머니</span>
+      <span class="amount" id="user-money">조회 중...</span>
+    </div>
+
+    <p style="font-size:.85rem; font-weight:600; color:var(--text-muted); margin-bottom:8px;">좌석 선택</p>
+    <div class="seat-grid" id="seat-grid"></div>
+    <div class="seat-legend">
+      <div class="seat-legend-item"><div class="seat-legend-box"></div>선택 가능</div>
+      <div class="seat-legend-item"><div class="seat-legend-box selected"></div>선택됨</div>
+      <div class="seat-legend-item"><div class="seat-legend-box booked"></div>예매됨</div>
+    </div>
+    <div id="selected-info" style="margin-top:14px; padding:10px; background:#f0f7ff; border-radius:8px; font-size:.88rem; display:none;"></div>
+    <div id="alert-modal" style="margin-top:10px;"></div>
+    <div style="display:flex; gap:10px; margin-top:20px;">
+      <button class="btn btn-outline" style="flex:1;" onclick="closeModal()">취소</button>
+      <button class="btn btn-accent" style="flex:1;" id="confirm-btn" onclick="confirmBooking()">예매 확정</button>
+    </div>
+  </div>
+</div>
+
+<script src="js/config.js"></script>
+<script>
+  document.getElementById('header-wrap').innerHTML = renderHeader('movies');
+
+  let movies = {}, bookedSeats = {}, favorites = {};
+  let currentMovie = null, currentTime = null, currentDate = null, selectedSeat = null;
+
+  const today = new Date().toISOString().split('T')[0];
+
+  async function load() {
+    try {
+      movies = await dbGet('movies') || {};
+      const bookings = await dbGet('bookings') || {};
+      bookedSeats = {};
+      Object.values(bookings).forEach(b => {
+        if (b.type === 'movie' && b.status !== '취소됨') {
+          const key = `${b.itemId}_${b.date}_${b.time}`;
+          if (!bookedSeats[key]) bookedSeats[key] = [];
+          bookedSeats[key].push(b.seat);
+        }
+      });
+      const user = getUser();
+      if (user) favorites = await getFavorites(user.uid);
+      render();
+    } catch {
+      document.getElementById('content').innerHTML = '<div class="alert alert-error">데이터를 불러오지 못했습니다.</div>';
+    }
+  }
+
+  function isFav(id) { return !!(favorites.movie && favorites.movie[id]); }
+
+  function render() {
+    if (!Object.keys(movies).length) {
+      document.getElementById('content').innerHTML = '<div class="empty-state"><div class="icon">🎬</div><p>상영 중인 영화가 없습니다.</p></div>';
+      return;
+    }
+    let html = '<div class="movie-grid">';
+    for (const [id, m] of Object.entries(movies)) {
+      const chips = m.times.map(t =>
+        `<span class="time-chip" onclick="selectTime('${id}','${t}',this)">${t}</span>`
+      ).join('');
+      html += `
+        <div class="movie-card">
+          <div class="movie-poster">
+            ${m.poster || '🎬'}
+            <button class="fav-btn ${isFav(id) ? 'active' : ''}" id="fav-movie-${id}" onclick="doToggleFav('movie','${id}',this)" title="찜하기">♥</button>
+          </div>
+          <div class="movie-body">
+            <div class="movie-title">${m.title}</div>
+            <div class="movie-meta"><span class="badge badge-blue">${m.genre}</span> &nbsp;${m.duration}분 · ${m.theater}</div>
+            <div class="time-chips">${chips}</div>
+            <div class="movie-price">₩${m.price.toLocaleString()}</div>
+          </div>
+        </div>`;
+    }
+    html += '</div>';
+    document.getElementById('content').innerHTML = html;
+  }
+
+  async function doToggleFav(type, id, btn) {
+    const user = getUser();
+    if (!user) { alert('로그인이 필요합니다.'); return; }
+    btn.disabled = true;
+    try {
+      const isNow = await toggleFavorite(user.uid, type, id);
+      btn.classList.toggle('active', isNow);
+      if (!favorites[type]) favorites[type] = {};
+      if (isNow) favorites[type][id] = { addedAt: Date.now() };
+      else delete favorites[type][id];
+    } finally { btn.disabled = false; }
+  }
+
+  function selectTime(movieId, time, el) {
+    document.querySelectorAll('.time-chip').forEach(c => c.classList.remove('selected'));
+    el.classList.add('selected');
+    const user = getUser();
+    if (!user) {
+      if (confirm('로그인이 필요합니다. 로그인 페이지로 이동할까요?')) window.location.href = 'login.html';
+      el.classList.remove('selected');
+      return;
+    }
+    openModal(movieId, time);
+  }
+
+  function openModal(movieId, time) {
+    currentMovie = movieId; currentTime = time; currentDate = today; selectedSeat = null;
+    const m = movies[movieId];
+    document.getElementById('modal-title').textContent = `${m.title} 좌석 선택`;
+    document.getElementById('modal-info').innerHTML =
+      `🎬 <b>${m.title}</b> &nbsp;|&nbsp; 🎭 ${m.theater} &nbsp;|&nbsp; 🕐 ${time} &nbsp;|&nbsp; 💰 ₩${m.price.toLocaleString()}`;
+    document.getElementById('movie-date').value = today;
+    document.getElementById('movie-date').min = today;
+    document.getElementById('selected-info').style.display = 'none';
+    document.getElementById('alert-modal').innerHTML = '';
+    renderSeats();
+    getUserMoney(getUser().uid).then(money => {
+      document.getElementById('user-money').textContent = `₩${money.toLocaleString()}`;
+    }).catch(() => { document.getElementById('user-money').textContent = '-'; });
+    document.getElementById('booking-modal').classList.add('open');
+  }
+
+  function onDateChange() {
+    currentDate = document.getElementById('movie-date').value;
+    selectedSeat = null;
+    document.getElementById('selected-info').style.display = 'none';
+    renderSeats();
+  }
+
+  function renderSeats() {
+    const m = movies[currentMovie];
+    const key = `${currentMovie}_${currentDate}_${currentTime}`;
+    const taken = bookedSeats[key] || [];
+    const cols = 8;
+    const rows = Math.ceil(m.seats / cols);
+    let html = '';
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        const num = r * cols + c + 1;
+        if (num > m.seats) break;
+        const label = `${String.fromCharCode(65 + r)}${c + 1}`;
+        const isBooked = taken.includes(label);
+        html += `<div class="seat${isBooked ? ' booked' : ''}" onclick="selectSeat('${label}',this)">${label}</div>`;
+      }
+    }
+    document.getElementById('seat-grid').innerHTML = html;
+  }
+
+  function selectSeat(label, el) {
+    if (el.classList.contains('booked')) return;
+    document.querySelectorAll('.seat.selected').forEach(s => s.classList.remove('selected'));
+    el.classList.add('selected');
+    selectedSeat = label;
+    const m = movies[currentMovie];
+    const info = document.getElementById('selected-info');
+    info.style.display = 'block';
+    info.innerHTML = `선택 좌석: <b>${label}</b> &nbsp;|&nbsp; 날짜: <b>${currentDate}</b> &nbsp;|&nbsp; 결제: <b>₩${m.price.toLocaleString()}</b>`;
+  }
+
+  function closeModal() {
+    document.getElementById('booking-modal').classList.remove('open');
+    document.querySelectorAll('.time-chip.selected').forEach(c => c.classList.remove('selected'));
+  }
+
+  async function confirmBooking() {
+    if (!selectedSeat) {
+      document.getElementById('alert-modal').innerHTML = '<div class="alert alert-error">좌석을 선택해 주세요.</div>';
+      return;
+    }
+    if (!currentDate) {
+      document.getElementById('alert-modal').innerHTML = '<div class="alert alert-error">날짜를 선택해 주세요.</div>';
+      return;
+    }
+    const user = getUser();
+    const m = movies[currentMovie];
+    const btn = document.getElementById('confirm-btn');
+    btn.textContent = '처리 중...'; btn.disabled = true;
+    try {
+      // 게임 머니 확인
+      const money = await getUserMoney(user.uid);
+      if (money < m.price) {
+        document.getElementById('alert-modal').innerHTML =
+          `<div class="alert alert-error">게임 머니가 부족합니다.<br>현재: ₩${money.toLocaleString()} / 필요: ₩${m.price.toLocaleString()}</div>`;
+        return;
+      }
+      // 예매 생성
+      const result = await dbPush('bookings', {
+        type: 'movie', userId: user.uid, userName: user.name,
+        itemId: currentMovie, title: m.title, theater: m.theater,
+        date: currentDate, time: currentTime, seat: selectedSeat,
+        price: m.price, status: '예매완료', bookedAt: Date.now()
+      });
+      // 게임 머니 차감
+      const remaining = await deductMoney(user.uid, m.price);
+      // 확인 페이지로 이동
+      window.location.href = `confirm.html?id=${result.name}&spent=${m.price}&left=${remaining}`;
+    } catch (e) {
+      document.getElementById('alert-modal').innerHTML = `<div class="alert alert-error">${e.message || '예매 중 오류가 발생했습니다.'}</div>`;
+    } finally {
+      btn.textContent = '예매 확정'; btn.disabled = false;
+    }
+  }
+
+  load();
+</script>
+</body>
+</html>

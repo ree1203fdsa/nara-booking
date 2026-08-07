@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>회원가입 - 나라예매</title>
+  <link rel="stylesheet" href="css/style.css">
+  <style>
+    body { display: flex; flex-direction: column; min-height: 100vh; }
+    .auth-wrap {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 40px 20px;
+    }
+    .auth-box {
+      background: white;
+      border-radius: 14px;
+      padding: 40px;
+      width: 100%;
+      max-width: 440px;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.1);
+      border: 1px solid var(--border);
+    }
+    .auth-logo { text-align: center; margin-bottom: 28px; }
+    .auth-logo .icon { font-size: 2.4rem; }
+    .auth-logo h2 { font-size: 1.4rem; font-weight: 700; color: var(--primary); margin-top: 8px; }
+    .auth-logo p { font-size: 0.88rem; color: var(--text-muted); margin-top: 4px; }
+  </style>
+</head>
+<body>
+
+<div id="header-wrap"></div>
+
+<div class="auth-wrap">
+  <div class="auth-box">
+    <div class="auth-logo">
+      <div class="icon">🏛️</div>
+      <h2>회원가입</h2>
+      <p>나라예매에 오신 것을 환영합니다</p>
+    </div>
+
+    <div id="alert-wrap"></div>
+
+    <form id="reg-form">
+      <div class="form-group">
+        <label>아이디 (나라게임 아이디)</label>
+        <input type="text" id="uid" placeholder="게임 아이디 입력" required minlength="2" maxlength="20">
+      </div>
+      <div class="form-group">
+        <label>비밀번호</label>
+        <input type="password" id="pw" placeholder="비밀번호 입력" required minlength="1" autocomplete="new-password">
+      </div>
+      <div class="form-group">
+        <label>비밀번호 확인</label>
+        <input type="password" id="pw2" placeholder="비밀번호 재입력" required autocomplete="new-password">
+      </div>
+      <button type="submit" class="btn btn-primary btn-full" id="reg-btn">회원가입</button>
+    </form>
+    <div style="margin-top:14px; padding:12px; background:#fef9c3; border-radius:8px; font-size:0.82rem; color:#854d0e;">
+      💡 나라게임에서 사용 중인 아이디로 가입하면 게임 계정과 연동됩니다.
+    </div>
+
+    <p style="text-align:center; font-size:0.9rem; color:var(--text-muted); margin-top:20px;">
+      이미 계정이 있으신가요? <a href="login.html" style="color:var(--primary-light); font-weight:600;">로그인</a>
+    </p>
+  </div>
+</div>
+
+<script src="js/config.js"></script>
+<script>
+  document.getElementById('header-wrap').innerHTML = renderHeader('');
+  if (getUser()) window.location.href = 'index.html';
+
+  function showAlert(msg, type = 'error') {
+    document.getElementById('alert-wrap').innerHTML =
+      `<div class="alert alert-${type}">${msg}</div>`;
+  }
+
+  document.getElementById('reg-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const uid = document.getElementById('uid').value.trim();
+    const pw  = document.getElementById('pw').value;
+    const pw2 = document.getElementById('pw2').value;
+    const btn = document.getElementById('reg-btn');
+
+    if (!uid || !pw) return showAlert('모든 항목을 입력해 주세요.');
+    if (pw !== pw2) return showAlert('비밀번호가 일치하지 않습니다.');
+    if (uid === ADMIN.id) return showAlert('사용할 수 없는 아이디입니다.');
+
+    btn.textContent = '가입 중...';
+    btn.disabled = true;
+
+    try {
+      await registerGameUser(uid, pw);
+      showAlert('가입 완료! 로그인 페이지로 이동합니다.', 'success');
+      setTimeout(() => window.location.href = 'login.html', 1500);
+    } catch (err) {
+      showAlert(err.message || '가입 중 오류가 발생했습니다. 다시 시도해 주세요.');
+    } finally {
+      btn.textContent = '회원가입';
+      btn.disabled = false;
+    }
+  });
+</script>
+</body>
+</html>

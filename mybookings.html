@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>내 예매 내역 - 나라예매</title>
+  <link rel="stylesheet" href="css/style.css">
+  <style>
+    .filter-tabs{display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap;}
+    .tab-btn{padding:7px 18px;border-radius:20px;border:1.5px solid var(--border);background:white;font-size:.88rem;font-weight:600;cursor:pointer;transition:all .15s;color:var(--text-muted);}
+    .tab-btn.active{background:var(--primary-light);color:white;border-color:var(--primary-light);}
+    .booking-card{background:white;border-radius:12px;border:1.5px solid var(--border);padding:20px;margin-bottom:14px;box-shadow:var(--shadow);display:flex;justify-content:space-between;align-items:flex-start;gap:16px;}
+    .booking-title{font-size:1.05rem;font-weight:700;margin-bottom:6px;}
+    .booking-meta{font-size:.85rem;color:var(--text-muted);line-height:1.7;}
+    .booking-price{font-size:1.1rem;font-weight:800;color:var(--primary);margin-bottom:8px;}
+    .fav-card{background:white;border-radius:12px;border:1.5px solid var(--border);padding:16px 20px;margin-bottom:12px;box-shadow:var(--shadow);display:flex;justify-content:space-between;align-items:center;gap:16px;}
+    .fav-info .name{font-size:1rem;font-weight:700;margin-bottom:4px;}
+    .fav-info .meta{font-size:.82rem;color:var(--text-muted);}
+    .fav-actions{display:flex;gap:8px;flex-shrink:0;}
+  </style>
+</head>
+<body>
+<div id="header-wrap"></div>
+<div class="container">
+  <p class="page-title">📋 내 예매 내역</p>
+  <p class="page-subtitle" id="user-name-label">내가 예매한 내역을 확인하세요</p>
+
+  <div class="filter-tabs">
+    <button class="tab-btn active" onclick="setFilter('all',this)">전체</button>
+    <button class="tab-btn" onclick="setFilter('movie',this)">🎬 영화</button>
+    <button class="tab-btn" onclick="setFilter('flight',this)">✈️ 비행기</button>
+    <button class="tab-btn" onclick="setFilter('train',this)">🚄 기차</button>
+    <button class="tab-btn" onclick="setFilter('bus',this)">🚌 버스</button>
+    <button class="tab-btn" onclick="setFilter('favorites',this)">❤️ 찜 목록</button>
+  </div>
+
+  <div id="content"><div class="loading"><div class="spinner"></div>불러오는 중...</div></div>
+</div>
+
+<div class="modal-overlay" id="cancel-modal">
+  <div class="modal" style="max-width:380px;">
+    <div class="modal-header">
+      <span class="modal-title">예매 취소</span>
+      <button class="modal-close" onclick="closeCancelModal()">✕</button>
+    </div>
+    <p style="color:var(--text-muted);font-size:.9rem;margin-bottom:24px;">정말로 이 예매를 취소하시겠습니까?<br>취소 시 게임 머니가 환불됩니다.</p>
+    <div id="cancel-info" style="padding:12px;background:#f8fafc;border-radius:8px;font-size:.88rem;margin-bottom:20px;"></div>
+    <div style="display:flex;gap:10px;">
+      <button class="btn btn-outline" style="flex:1;" onclick="closeCancelModal()">돌아가기</button>
+      <button class="btn btn-danger" style="flex:1;" id="cancel-confirm-btn" onclick="doCancel()">취소하기</button>
+    </div>
+  </div>
+</div>
+
+<script src="js/config.js"></script>
+<script>
+  document.getElementById('header-wrap').innerHTML = renderHeader('mybookings');
+  const user = requireLogin();
+  let allBookings={}, favorites={}, favData={}, currentFilter='all', cancelKey=null;
+
+  if(user){
+    document.getElementById('user-name-label').textContent=`${user.name}님의 예매 내역`;
+    load();
+  }
+
+  async function load(){
+    try{
+      const bookings=await dbGet('bookings')||{};
+      allBookings={};
+      for(const [key,b] of Object.entries(bookings)) if(b.userId===user.uid) allBookings[key]=b;
+      favorites=await getFavorites(user.uid);
+      // load actual fav item data
+      await loadFavData();
+      render();
+    } catch{document.getElementById('content').innerHTML='<div class="alert alert-error">내역을 불러오지 못했습니다.</div>';}
+  }
+
+  async function loadFavData(){
+    favData={};
+    const types=['movie','flight','train','bus'];
+    for(const type of types){
+      const favs=favorites[type]||{};
+      if(!Object.keys(favs).length) continue;
+      const allItems=await dbGet(type==='movie'?'movies':type==='flight'?'flights':type==='train'?'trains':'buses')||{};
+      favData[type]={};
+      for(const id of Object.keys(favs)){
+        if(allItems[id]) favData[type][id]=allItems[id];
+      }
+    }
+  }
+
+  function setFilter(type,btn){
+    currentFilter=type;
+    document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    render();
+  }
+
+  function render(){
+    if(currentFilter==='favorites'){ renderFavorites(); return; }
+    let list=Object.entries(allBookings).filter(([,b])=>currentFilter==='all'||b.type===currentFilter);
+    list.sort((a,b)=>b[1].bookedAt-a[1].bookedAt);
+    if(!list.length){
+      const icon=currentFilter==='all'?'📋':(TYPE_LABELS[currentFilter]?.icon||'📋');
+      document.getElementById('content').innerHTML=`<div class="empty-state"><div class="icon">${icon}</div><p>예매 내역이 없습니다.</p><a href="index.html" class="btn btn-primary">예매하러 가기</a></div>`;
+      return;
+    }
+    let html='';
+    for(const [key,b] of list){
+      const tl=TYPE_LABELS[b.type]||{label:b.type,icon:'📌',color:'badge-gray'};
+      const isCancelled=b.status==='취소됨';
+      let detail='';
+      if(b.type==='movie') detail=`🎭 ${b.theater} &nbsp;|&nbsp; 📅 ${b.date||''} ${b.time} &nbsp;|&nbsp; 💺 ${b.seat}`;
+      else if(b.type==='flight') detail=`✈️ ${b.airline} &nbsp;|&nbsp; 📅 ${b.date} ${b.depart}~${b.arrive} &nbsp;|&nbsp; 💺 ${b.seat}`;
+      else if(b.type==='train') detail=`🚄 ${b.trainNumber} &nbsp;|&nbsp; 📅 ${b.date} ${b.depart}~${b.arrive} &nbsp;|&nbsp; 💺 ${b.seat}`;
+      else if(b.type==='bus') detail=`🚌 ${b.company} ${b.busType} &nbsp;|&nbsp; 📅 ${b.date} ${b.depart}~${b.arrive} &nbsp;|&nbsp; 💺 ${b.seat}`;
+      html+=`<div class="booking-card" style="${isCancelled?'opacity:.6;':''}">
+        <div style="flex:1;">
+          <div style="margin-bottom:8px;">
+            <span class="badge ${tl.color}">${tl.icon} ${tl.label}</span>
+            &nbsp;<span class="badge ${isCancelled?'badge-red':'badge-green'}">${b.status}</span>
+          </div>
+          <div class="booking-title">${b.title}</div>
+          <div class="booking-meta">${detail}</div>
+          <div class="booking-meta" style="margin-top:4px;font-size:.78rem;">예매일: ${formatDateTime(b.bookedAt)}</div>
+        </div>
+        <div style="text-align:right;flex-shrink:0;">
+          <div class="booking-price">₩${b.price.toLocaleString()}</div>
+          <div style="display:flex;gap:6px;flex-direction:column;align-items:flex-end;">
+            <a href="confirm.html?id=${key}" class="btn btn-outline btn-sm">🎫 티켓</a>
+            ${!isCancelled?`<button class="btn btn-danger btn-sm" onclick="openCancelModal('${key}')">취소</button>`:''}
+          </div>
+        </div>
+      </div>`;
+    }
+    document.getElementById('content').innerHTML=html;
+  }
+
+  function renderFavorites(){
+    const typeMap={movie:{label:'영화',icon:'🎬',page:'movies.html'},flight:{label:'비행기',icon:'✈️',page:'flights.html'},train:{label:'기차',icon:'🚄',page:'trains.html'},bus:{label:'버스',icon:'🚌',page:'buses.html'}};
+    let html='', hasAny=false;
+    for(const [type,items] of Object.entries(favData)){
+      if(!items||!Object.keys(items).length) continue;
+      hasAny=true;
+      const ti=typeMap[type]||{label:type,icon:'📌',page:'index.html'};
+      html+=`<p style="font-size:.9rem;font-weight:700;color:var(--primary);margin:20px 0 10px;">${ti.icon} ${ti.label}</p>`;
+      for(const [id,item] of Object.entries(items)){
+        let name='',meta='',price=0;
+        if(type==='movie'){name=item.title;meta=`${item.genre} · ${item.duration}분 · ${item.theater}`;price=item.price;}
+        else if(type==='flight'){name=`${item.from} → ${item.to}`;meta=`${item.airline} · ${item.date} ${item.depart}`;price=item.price;}
+        else if(type==='train'){name=`${item.from} → ${item.to}`;meta=`${item.number} · ${item.date} ${item.depart}`;price=item.price;}
+        else if(type==='bus'){name=`${item.from} → ${item.to}`;meta=`${item.company} ${item.type} · ${item.date} ${item.depart}`;price=item.price;}
+        html+=`<div class="fav-card">
+          <div class="fav-info">
+            <div class="name">${name}</div>
+            <div class="meta">${meta}</div>
+          </div>
+          <div class="fav-actions">
+            <span style="font-size:.95rem;font-weight:700;color:var(--primary);">₩${price.toLocaleString()}</span>
+            <a href="${ti.page}" class="btn btn-accent btn-sm">예매하기</a>
+            <button class="btn btn-outline btn-sm" onclick="removeFav('${type}','${id}',this)">❤️ 취소</button>
+          </div>
+        </div>`;
+      }
+    }
+    if(!hasAny){
+      html='<div class="empty-state"><div class="icon">❤️</div><p>찜한 항목이 없습니다.</p><a href="index.html" class="btn btn-primary">둘러보기</a></div>';
+    }
+    document.getElementById('content').innerHTML=html;
+  }
+
+  async function removeFav(type,id,btn){
+    btn.disabled=true;
+    try{
+      await toggleFavorite(user.uid,type,id);
+      delete favData[type][id];
+      renderFavorites();
+    } catch(e){ btn.disabled=false; }
+  }
+
+  function openCancelModal(key){
+    cancelKey=key;
+    const b=allBookings[key];
+    const tl=TYPE_LABELS[b.type]||{};
+    document.getElementById('cancel-info').innerHTML=`<b>${tl.icon||''} ${b.title}</b><br>${b.type==='movie'?`${b.theater} ${b.time}`:`${b.date} ${b.depart}`} &nbsp;|&nbsp; ${b.seat}<br>환불 예정: ₩${b.price.toLocaleString()}`;
+    document.getElementById('cancel-modal').classList.add('open');
+  }
+
+  function closeCancelModal(){ document.getElementById('cancel-modal').classList.remove('open'); cancelKey=null; }
+
+  async function doCancel(){
+    if(!cancelKey) return;
+    const btn=document.getElementById('cancel-confirm-btn');
+    btn.textContent='처리 중...'; btn.disabled=true;
+    try{
+      const b=allBookings[cancelKey];
+      await dbSet(`bookings/${cancelKey}/status`,'취소됨');
+      // 게임 머니 환불
+      try{
+        const cur=await getUserMoney(user.uid);
+        await dbSet(`users/${user.uid}/money`, cur+b.price);
+      } catch(e){ console.warn('환불 실패', e); }
+      allBookings[cancelKey].status='취소됨';
+      closeCancelModal(); render();
+    } catch{ alert('취소 중 오류가 발생했습니다.'); }
+    finally{ btn.textContent='취소하기'; btn.disabled=false; }
+  }
+</script>
+</body>
+</html>
