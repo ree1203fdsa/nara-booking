@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#1a3a6b">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="나라예매">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+  <title>관광 예매 - 나라예매</title>
+  <link rel="stylesheet" href="css/style.css">
+  <style>
+    .filter-tabs { display:flex; gap:8px; margin-bottom:20px; flex-wrap:wrap; }
+    .tab-btn { padding:7px 18px; border-radius:20px; border:1.5px solid var(--border); background:white; font-size:.88rem; font-weight:600; cursor:pointer; transition:all .15s; color:var(--text-muted); }
+    .tab-btn.active { background:var(--primary-light); color:white; border-color:var(--primary-light); }
+    .attr-list { display:grid; grid-template-columns:repeat(auto-fill,minmax(300px,1fr)); gap:16px; }
+    .attr-card { background:white; border-radius:12px; border:1.5px solid var(--border); padding:22px; box-shadow:var(--shadow); transition:border-color .2s; position:relative; display:flex; flex-direction:column; gap:10px; }
+    .attr-card:hover { border-color:var(--primary-light); }
+    .attr-top { display:flex; justify-content:space-between; align-items:flex-start; }
+    .attr-icon { font-size:2.4rem; }
+    .attr-fav { background:none; border:none; font-size:1.2rem; cursor:pointer; color:#ccc; padding:4px; transition:all .15s; }
+    .attr-fav.active { color:#e53e3e; }
+    .attr-name { font-size:1.05rem; font-weight:700; color:var(--primary); margin-bottom:4px; }
+    .attr-meta { font-size:.83rem; color:var(--text-muted); line-height:1.7; }
+    .attr-pricing { background:#f8fafc; border-radius:8px; padding:10px 12px; font-size:.85rem; }
+    .attr-pricing .price-row { display:flex; justify-content:space-between; padding:2px 0; }
+    .attr-pricing .price-val { font-weight:700; color:var(--primary); }
+    .free-badge { background:#dcfce7; color:#15803d; border-radius:6px; padding:2px 8px; font-size:.75rem; font-weight:700; }
+    .money-bar { background:#f0f9ff; border:1px solid #bae6fd; border-radius:8px; padding:10px 14px; margin-bottom:14px; font-size:.85rem; display:flex; justify-content:space-between; align-items:center; }
+    .money-bar .label { color:#0369a1; }
+    .money-bar .amount { font-weight:700; color:#0c4a6e; }
+    .price-preview { background:#f0f7ff; border-radius:8px; padding:12px 14px; margin:14px 0; font-size:.88rem; }
+    .price-preview .row { display:flex; justify-content:space-between; padding:3px 0; }
+    .price-preview .total { font-size:1.05rem; font-weight:800; color:var(--primary); border-top:1px solid #bfdbfe; margin-top:6px; padding-top:6px; }
+    .qty-row { display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; }
+    .qty-label { font-size:.88rem; font-weight:600; color:var(--text-muted); }
+    .qty-ctrl { display:flex; align-items:center; gap:10px; }
+    .qty-btn { width:32px; height:32px; border-radius:8px; border:1.5px solid var(--border); background:white; font-size:1.1rem; cursor:pointer; display:flex; align-items:center; justify-content:center; font-weight:700; transition:all .15s; }
+    .qty-btn:hover { border-color:var(--primary-light); color:var(--primary); }
+    .qty-val { font-size:1.1rem; font-weight:700; min-width:24px; text-align:center; }
+    @media(max-width:640px) { .attr-list { grid-template-columns:1fr; } }
+  </style>
+</head>
+<body>
+<div id="header-wrap"></div>
+<div class="container">
+  <p class="page-title">🎡 관광 예매</p>
+  <p class="page-subtitle">아쿠아리움, 동물원, 박물관 티켓을 예매하세요</p>
+
+  <div id="money-wrap" style="display:none;" class="money-bar">
+    <span class="label">💰 게임 머니</span>
+    <span class="amount" id="money-amt">-</span>
+  </div>
+
+  <div class="filter-tabs">
+    <button class="tab-btn active" onclick="setFilter('전체',this)">전체</button>
+    <button class="tab-btn" onclick="setFilter('아쿠아리움',this)">🐠 아쿠아리움</button>
+    <button class="tab-btn" onclick="setFilter('동물원',this)">🦁 동물원</button>
+    <button class="tab-btn" onclick="setFilter('박물관',this)">🏛️ 박물관</button>
+  </div>
+
+  <div id="attr-list" class="attr-list"><div class="loading"><div class="spinner"></div>불러오는 중...</div></div>
+</div>
+
+<!-- 예매 모달 -->
+<div class="modal-overlay" id="book-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title" id="m-title">관광 예매</span>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div id="m-info" style="background:#f8fafc;border-radius:8px;padding:12px 14px;margin-bottom:16px;font-size:.88rem;"></div>
+    <div class="form-group">
+      <label>방문일</label>
+      <input type="date" id="m-date">
+    </div>
+    <div style="margin-bottom:4px;font-size:.82rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.04em;">인원 선택</div>
+    <div class="qty-row">
+      <div class="qty-label">성인<br><small id="adult-price-label" style="font-weight:400;"></small></div>
+      <div class="qty-ctrl">
+        <button class="qty-btn" onclick="changeQty('adults',-1)">−</button>
+        <span class="qty-val" id="adults-val">1</span>
+        <button class="qty-btn" onclick="changeQty('adults',1)">+</button>
+      </div>
+    </div>
+    <div class="qty-row">
+      <div class="qty-label">어린이<br><small id="child-price-label" style="font-weight:400;"></small></div>
+      <div class="qty-ctrl">
+        <button class="qty-btn" onclick="changeQty('children',-1)">−</button>
+        <span class="qty-val" id="children-val">0</span>
+        <button class="qty-btn" onclick="changeQty('children',1)">+</button>
+      </div>
+    </div>
+    <div class="price-preview" id="price-preview" style="display:none;">
+      <div class="row"><span id="pp-adult-row"></span><span id="pp-adult-price"></span></div>
+      <div class="row"><span id="pp-child-row"></span><span id="pp-child-price"></span></div>
+      <div class="row total"><span>결제 금액</span><span id="pp-total"></span></div>
+    </div>
+    <div id="m-alert" class="alert alert-error" style="display:none;"></div>
+    <button class="btn btn-accent btn-full" id="m-book-btn" onclick="confirmBooking()">예매하기</button>
+  </div>
+</div>
+
+<script src="js/config.js"></script>
+<script>
+  document.getElementById('header-wrap').innerHTML = renderHeader('attractions');
+  seedIfEmpty();
+
+  let allAttractions = {}, currentFilter = '전체', selectedId = null, userFavs = {};
+  let adults = 1, children = 0;
+  const user = getUser();
+
+  const CAT_BADGE = { '아쿠아리움': 'badge-blue', '동물원': 'badge-yellow', '박물관': 'badge-gray' };
+
+  async function init() {
+    if (user && !user.isAdmin) {
+      try {
+        const money = await getUserMoney(user.uid);
+        document.getElementById('money-amt').textContent = `₩${money.toLocaleString()}`;
+        document.getElementById('money-wrap').style.display = 'flex';
+        userFavs = (await getFavorites(user.uid)).attraction || {};
+      } catch(e) {}
+    }
+    try {
+      allAttractions = await dbGet('attractions') || {};
+      render();
+    } catch(e) {
+      document.getElementById('attr-list').innerHTML = '<div class="alert alert-error">데이터를 불러올 수 없습니다.</div>';
+    }
+  }
+
+  function setFilter(f, btn) {
+    currentFilter = f;
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    render();
+  }
+
+  function render() {
+    const items = Object.entries(allAttractions).filter(([,a]) => currentFilter === '전체' || a.category === currentFilter);
+    if (!items.length) {
+      document.getElementById('attr-list').innerHTML = '<div class="empty-state"><div class="icon">🎡</div><p>관광지가 없습니다.</p></div>';
+      return;
+    }
+    document.getElementById('attr-list').innerHTML = items.map(([id, a]) => {
+      const isFav = !!userFavs[id];
+      const adultTxt = a.adultPrice === 0 ? '<span class="free-badge">무료</span>' : `₩${a.adultPrice.toLocaleString()}`;
+      const childTxt = a.childPrice === 0 ? '<span class="free-badge">무료</span>' : `₩${a.childPrice.toLocaleString()}`;
+      return `<div class="attr-card">
+        <div class="attr-top">
+          <span class="attr-icon">${a.img}</span>
+          <div style="display:flex;align-items:center;gap:6px;">
+            <span class="badge ${CAT_BADGE[a.category]||'badge-gray'}">${a.category}</span>
+            ${user ? `<button class="attr-fav${isFav?' active':''}" id="fav-${id}" onclick="toggleFav('${id}',this)">❤️</button>` : ''}
+          </div>
+        </div>
+        <div>
+          <div class="attr-name">${a.name}</div>
+          <div class="attr-meta">📍 ${a.location}<br>⏰ ${a.openTime} ~ ${a.closeTime}</div>
+        </div>
+        <div class="attr-pricing">
+          <div class="price-row"><span>성인</span><span class="price-val">${adultTxt}</span></div>
+          <div class="price-row"><span>어린이</span><span class="price-val">${childTxt}</span></div>
+        </div>
+        <button class="btn btn-accent btn-full btn-sm" onclick="openModal('${id}')">예매하기</button>
+      </div>`;
+    }).join('');
+  }
+
+  async function toggleFav(id, btn) {
+    if (!user) { alert('로그인이 필요합니다.'); return; }
+    try {
+      const on = await toggleFavorite(user.uid, 'attraction', id);
+      btn.classList.toggle('active', on);
+      if (on) userFavs[id] = true; else delete userFavs[id];
+    } catch(e) {}
+  }
+
+  function openModal(id) {
+    if (!user) { window.location.href = 'login.html'; return; }
+    selectedId = id;
+    adults = 1; children = 0;
+    const a = allAttractions[id];
+    document.getElementById('m-title').textContent = a.name;
+    document.getElementById('m-info').innerHTML = `<b>${a.img} ${a.name}</b><br>📍 ${a.location} &nbsp;|&nbsp; ⏰ ${a.openTime}~${a.closeTime}`;
+    document.getElementById('adult-price-label').textContent = a.adultPrice === 0 ? '무료' : `₩${a.adultPrice.toLocaleString()}`;
+    document.getElementById('child-price-label').textContent = a.childPrice === 0 ? '무료' : `₩${a.childPrice.toLocaleString()}`;
+    document.getElementById('adults-val').textContent = 1;
+    document.getElementById('children-val').textContent = 0;
+    document.getElementById('m-alert').style.display = 'none';
+    const today = new Date().toISOString().split('T')[0];
+    document.getElementById('m-date').value = today;
+    document.getElementById('m-date').min = today;
+    calcPrice();
+    document.getElementById('book-modal').classList.add('open');
+  }
+
+  function closeModal() {
+    document.getElementById('book-modal').classList.remove('open');
+    selectedId = null;
+  }
+
+  function changeQty(type, delta) {
+    if (type === 'adults') {
+      adults = Math.max(0, adults + delta);
+      document.getElementById('adults-val').textContent = adults;
+    } else {
+      children = Math.max(0, children + delta);
+      document.getElementById('children-val').textContent = children;
+    }
+    calcPrice();
+  }
+
+  function calcPrice() {
+    if (!selectedId) return;
+    const a = allAttractions[selectedId];
+    const total = adults * a.adultPrice + children * a.childPrice;
+    document.getElementById('pp-adult-row').textContent = `성인 ${adults}명`;
+    document.getElementById('pp-adult-price').textContent = `₩${(adults * a.adultPrice).toLocaleString()}`;
+    document.getElementById('pp-child-row').textContent = `어린이 ${children}명`;
+    document.getElementById('pp-child-price').textContent = `₩${(children * a.childPrice).toLocaleString()}`;
+    document.getElementById('pp-total').textContent = `₩${total.toLocaleString()}`;
+    document.getElementById('price-preview').style.display = 'block';
+  }
+
+  async function confirmBooking() {
+    if (!selectedId || !user) return;
+    const a = allAttractions[selectedId];
+    const visitDate = document.getElementById('m-date').value;
+    const alertEl = document.getElementById('m-alert');
+    alertEl.style.display = 'none';
+
+    if (!visitDate) { alertEl.textContent = '방문일을 선택해 주세요.'; alertEl.style.display = 'flex'; return; }
+    if (adults + children === 0) { alertEl.textContent = '인원을 1명 이상 선택해 주세요.'; alertEl.style.display = 'flex'; return; }
+
+    const price = adults * a.adultPrice + children * a.childPrice;
+    const btn = document.getElementById('m-book-btn');
+    btn.textContent = '처리 중...'; btn.disabled = true;
+    try {
+      const remaining = await deductMoney(user.uid, price);
+      const booking = {
+        type: 'attraction', userId: user.uid, userName: user.name,
+        itemId: selectedId, title: a.name, location: a.location, category: a.category,
+        visitDate, adults, children, adultPrice: a.adultPrice, childPrice: a.childPrice,
+        price, status: '예매완료', bookedAt: Date.now()
+      };
+      const res = await dbPush('bookings', booking);
+      const newId = res.name;
+      window.location.href = `confirm.html?id=${newId}&spent=${price}&left=${remaining}`;
+    } catch(e) {
+      alertEl.textContent = e.message || '예매 중 오류가 발생했습니다.'; alertEl.style.display = 'flex';
+      btn.textContent = '예매하기'; btn.disabled = false;
+    }
+  }
+
+  init();
+</script>
+<script>if('serviceWorker'in navigator)navigator.serviceWorker.register('/sw.js');</script>
+</body>
+</html>

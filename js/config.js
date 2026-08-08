@@ -103,6 +103,8 @@ function renderHeader(activePage) {
     { href: 'flights.html', label: '✈️ 비행기' },
     { href: 'trains.html', label: '🚄 기차' },
     { href: 'buses.html', label: '🚌 버스' },
+    { href: 'hotels.html', label: '🏨 숙박' },
+    { href: 'attractions.html', label: '🎡 관광' },
     { href: 'mybookings.html', label: '📋 내 예매' },
   ];
 
@@ -205,10 +207,12 @@ function seatBadge(remaining, total) {
 
 // ===== 타입 라벨 =====
 const TYPE_LABELS = {
-  movie: { label: '영화', icon: '🎬', color: 'badge-blue' },
-  flight: { label: '비행기', icon: '✈️', color: 'badge-yellow' },
-  train: { label: '기차', icon: '🚄', color: 'badge-green' },
-  bus: { label: '버스', icon: '🚌', color: 'badge-gray' },
+  movie:      { label: '영화',      icon: '🎬', color: 'badge-blue' },
+  flight:     { label: '비행기',    icon: '✈️', color: 'badge-yellow' },
+  train:      { label: '기차',      icon: '🚄', color: 'badge-green' },
+  bus:        { label: '버스',      icon: '🚌', color: 'badge-gray' },
+  hotel:      { label: '숙박',      icon: '🏨', color: 'badge-blue' },
+  attraction: { label: '관광',      icon: '🎡', color: 'badge-yellow' },
 };
 
 // ===== 모바일 메뉴 =====
@@ -217,17 +221,19 @@ function closeMobileNav() { document.getElementById('mobile-nav').classList.remo
 
 // ===== 초기 샘플 데이터 삽입 =====
 async function seedIfEmpty() {
-  const movies = await dbGet('movies');
-  if (movies) return;
+  const [movies, flights, trains, buses, hotels, attractions] = await Promise.all([
+    dbGet('movies'), dbGet('flights'), dbGet('trains'), dbGet('buses'),
+    dbGet('hotels'), dbGet('attractions')
+  ]);
 
-  await dbSet('movies', {
+  if (!movies) await dbSet('movies', {
     m1: { title: '나라의 영웅', genre: '액션', duration: 128, theater: '1관', times: ['10:00', '13:30', '16:00', '19:30', '22:00'], price: 12000, seats: 48, poster: '🎬' },
     m2: { title: '바다의 노래', genre: '애니메이션', duration: 96, theater: '2관', times: ['11:00', '14:00', '17:00', '20:00'], price: 10000, seats: 48, poster: '🌊' },
     m3: { title: '별빛 아래서', genre: '로맨스', duration: 112, theater: '3관', times: ['12:00', '15:00', '18:30', '21:00'], price: 12000, seats: 48, poster: '⭐' },
     m4: { title: '공포의 밤', genre: '공포', duration: 104, theater: '4관', times: ['21:00', '23:30'], price: 13000, seats: 48, poster: '👻' },
   });
 
-  await dbSet('flights', {
+  if (!flights) await dbSet('flights', {
     f1: { airline: '나라항공', from: '서울(GMP)', to: '제주(CJU)', date: '2026-08-10', depart: '07:00', arrive: '08:05', price: 89000, seats: 60, class: '이코노미' },
     f2: { airline: '나라항공', from: '서울(GMP)', to: '제주(CJU)', date: '2026-08-10', depart: '12:00', arrive: '13:05', price: 95000, seats: 60, class: '이코노미' },
     f3: { airline: '하늘항공', from: '제주(CJU)', to: '서울(GMP)', date: '2026-08-10', depart: '17:00', arrive: '18:05', price: 85000, seats: 60, class: '이코노미' },
@@ -235,7 +241,7 @@ async function seedIfEmpty() {
     f5: { airline: '하늘항공', from: '서울(ICN)', to: '제주(CJU)', date: '2026-08-12', depart: '10:00', arrive: '11:10', price: 99000, seats: 60, class: '비즈니스' },
   });
 
-  await dbSet('trains', {
+  if (!trains) await dbSet('trains', {
     t1: { number: 'KTX 101', from: '서울', to: '부산', date: '2026-08-10', depart: '06:00', arrive: '08:32', price: 59800, seats: 60, type: 'KTX' },
     t2: { number: 'KTX 103', from: '서울', to: '부산', date: '2026-08-10', depart: '08:00', arrive: '10:32', price: 59800, seats: 60, type: 'KTX' },
     t3: { number: 'ITX 201', from: '서울', to: '강릉', date: '2026-08-10', depart: '07:30', arrive: '10:00', price: 28200, seats: 60, type: 'ITX' },
@@ -243,11 +249,30 @@ async function seedIfEmpty() {
     t5: { number: 'KTX 105', from: '부산', to: '서울', date: '2026-08-11', depart: '15:00', arrive: '17:32', price: 59800, seats: 60, type: 'KTX' },
   });
 
-  await dbSet('buses', {
+  if (!buses) await dbSet('buses', {
     b1: { company: '나라고속', from: '서울(강남)', to: '부산', date: '2026-08-10', depart: '06:30', arrive: '10:30', price: 28000, seats: 45, type: '우등' },
     b2: { company: '나라고속', from: '서울(강남)', to: '부산', date: '2026-08-10', depart: '09:00', arrive: '13:00', price: 23000, seats: 45, type: '일반' },
     b3: { company: '하늘고속', from: '서울(동서울)', to: '광주', date: '2026-08-10', depart: '07:00', arrive: '10:30', price: 22000, seats: 45, type: '우등' },
     b4: { company: '나라고속', from: '서울(강남)', to: '대전', date: '2026-08-11', depart: '08:00', arrive: '09:40', price: 12000, seats: 45, type: '일반' },
     b5: { company: '하늘고속', from: '부산', to: '서울(강남)', date: '2026-08-11', depart: '14:00', arrive: '18:00', price: 25000, seats: 45, type: '우등' },
+  });
+
+  if (!hotels) await dbSet('hotels', {
+    h1: { name: '나라 특급호텔', location: '서울 강남', category: '호텔', stars: 5, pricePerNight: 180000, totalRooms: 50, amenities: ['수영장', '조식', '무료주차'], img: '🏨' },
+    h2: { name: '하늘 비즈니스 호텔', location: '인천 공항', category: '호텔', stars: 3, pricePerNight: 75000, totalRooms: 80, amenities: ['조식', '무료와이파이'], img: '🏨' },
+    h3: { name: '제주 오션 리조트', location: '제주 서귀포', category: '호텔', stars: 4, pricePerNight: 220000, totalRooms: 40, amenities: ['수영장', '오션뷰', '레스토랑'], img: '🏖️' },
+    h4: { name: '부산 해운대 호텔', location: '부산 해운대', category: '호텔', stars: 4, pricePerNight: 160000, totalRooms: 60, amenities: ['바다뷰', '스파', '조식'], img: '🌊' },
+    c1: { name: '가평 나라캠핑파크', location: '경기 가평', category: '캠핑장', stars: 0, pricePerNight: 45000, totalRooms: 30, amenities: ['전기연결', '샤워실', '바베큐'], img: '⛺' },
+    c2: { name: '설악 오토캠핑장', location: '강원 속초', category: '캠핑장', stars: 0, pricePerNight: 35000, totalRooms: 50, amenities: ['전기연결', '화장실', '개수대'], img: '⛺' },
+    c3: { name: '남해 글램핑 리조트', location: '경남 남해', category: '캠핑장', stars: 0, pricePerNight: 130000, totalRooms: 15, amenities: ['글램핑', '조식제공', '바베큐'], img: '🏕️' },
+  });
+
+  if (!attractions) await dbSet('attractions', {
+    aq1: { name: '나라 아쿠아리움', location: '서울 강남', category: '아쿠아리움', adultPrice: 28000, childPrice: 18000, openTime: '10:00', closeTime: '20:00', img: '🐠' },
+    aq2: { name: '해양 아쿠아리움', location: '부산 해운대', category: '아쿠아리움', adultPrice: 32000, childPrice: 22000, openTime: '09:00', closeTime: '21:00', img: '🦈' },
+    zoo1: { name: '나라동물원', location: '경기 과천', category: '동물원', adultPrice: 15000, childPrice: 8000, openTime: '09:00', closeTime: '18:00', img: '🦁' },
+    zoo2: { name: '제주 사파리파크', location: '제주', category: '동물원', adultPrice: 25000, childPrice: 15000, openTime: '09:30', closeTime: '17:30', img: '🐘' },
+    mus1: { name: '국립중앙박물관', location: '서울 용산', category: '박물관', adultPrice: 0, childPrice: 0, openTime: '09:00', closeTime: '18:00', img: '🏛️' },
+    mus2: { name: '나라역사박물관', location: '경북 경주', category: '박물관', adultPrice: 12000, childPrice: 6000, openTime: '09:00', closeTime: '17:00', img: '🏺' },
   });
 }

@@ -10,14 +10,14 @@
   <meta name="apple-mobile-web-app-title" content="나라예매">
   <link rel="manifest" href="/manifest.json">
   <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
-  <title>나라예매 - 영화·비행기·기차·버스 예매</title>
+  <title>나라예매 - 영화·비행기·기차·버스·숙박·관광 예매</title>
   <link rel="stylesheet" href="css/style.css">
   <style>
     .hero{background:linear-gradient(135deg,var(--primary) 0%,var(--primary-light) 100%);color:white;padding:64px 24px;text-align:center;}
     .hero h1{font-size:2.2rem;font-weight:800;margin-bottom:12px;}
     .hero p{font-size:1.1rem;opacity:.85;margin-bottom:32px;}
     .hero-btns{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;}
-    .category-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:20px;margin-top:32px;}
+    .category-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;margin-top:32px;}
     .cat-card{background:white;border-radius:12px;padding:32px 20px;text-align:center;text-decoration:none;color:var(--text);box-shadow:var(--shadow);border:2px solid var(--border);transition:all .2s;}
     .cat-card:hover{border-color:var(--primary-light);transform:translateY(-4px);box-shadow:0 8px 24px rgba(0,0,0,.12);}
     .cat-icon{font-size:2.8rem;margin-bottom:14px;}
@@ -34,7 +34,7 @@
     .money-banner{background:linear-gradient(90deg,#1a3a6b,#2557a7);color:white;border-radius:12px;padding:16px 22px;margin-top:24px;display:flex;justify-content:space-between;align-items:center;}
     .money-banner .label{font-size:.85rem;opacity:.8;}
     .money-banner .amount{font-size:1.4rem;font-weight:800;}
-    @media(max-width:640px){.category-grid{grid-template-columns:repeat(2,1fr);}.hero h1{font-size:1.6rem;}.money-banner{flex-direction:column;gap:8px;text-align:center;}}
+    @media(max-width:640px){.category-grid{grid-template-columns:repeat(2,1fr);gap:12px;}.hero h1{font-size:1.6rem;}.money-banner{flex-direction:column;gap:8px;text-align:center;}}
   </style>
 </head>
 <body>
@@ -42,7 +42,7 @@
 
 <div class="hero">
   <h1>🏛️ 나라예매</h1>
-  <p>영화, 비행기, 기차, 버스를 한 곳에서 예매하세요</p>
+  <p>영화·비행기·기차·버스·숙박·관광을 한 곳에서 예매하세요</p>
   <div class="hero-btns">
     <a href="movies.html" class="btn btn-accent">지금 예매하기</a>
     <a href="mybookings.html" class="btn btn-outline" style="color:white;border-color:rgba(255,255,255,.6);">내 예매 확인</a>
@@ -64,6 +64,8 @@
     <a href="flights.html" class="cat-card"><div class="cat-icon">✈️</div><div class="cat-name">비행기</div><div class="cat-desc">국내 항공권을<br>저렴하게 예매하세요</div></a>
     <a href="trains.html" class="cat-card"><div class="cat-icon">🚄</div><div class="cat-name">기차</div><div class="cat-desc">KTX·ITX 기차표를<br>예매하세요</div></a>
     <a href="buses.html" class="cat-card"><div class="cat-icon">🚌</div><div class="cat-name">버스</div><div class="cat-desc">고속·시외버스를<br>편리하게 예매하세요</div></a>
+    <a href="hotels.html" class="cat-card"><div class="cat-icon">🏨</div><div class="cat-name">숙박</div><div class="cat-desc">호텔·캠핑장을<br>예약하세요</div></a>
+    <a href="attractions.html" class="cat-card"><div class="cat-icon">🎡</div><div class="cat-name">관광</div><div class="cat-desc">아쿠아리움·동물원·<br>박물관 티켓을 예매하세요</div></a>
   </div>
 
   <!-- 공지사항 -->

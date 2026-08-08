@@ -38,6 +38,8 @@
     <button class="tab-btn" onclick="setFilter('flight',this)">✈️ 비행기</button>
     <button class="tab-btn" onclick="setFilter('train',this)">🚄 기차</button>
     <button class="tab-btn" onclick="setFilter('bus',this)">🚌 버스</button>
+    <button class="tab-btn" onclick="setFilter('hotel',this)">🏨 숙박</button>
+    <button class="tab-btn" onclick="setFilter('attraction',this)">🎡 관광</button>
     <button class="tab-btn" onclick="setFilter('favorites',this)">❤️ 찜 목록</button>
   </div>
 
@@ -84,11 +86,12 @@
 
   async function loadFavData(){
     favData={};
-    const types=['movie','flight','train','bus'];
+    const typeToPath={movie:'movies',flight:'flights',train:'trains',bus:'buses',hotel:'hotels',attraction:'attractions'};
+    const types=Object.keys(typeToPath);
     for(const type of types){
       const favs=favorites[type]||{};
       if(!Object.keys(favs).length) continue;
-      const allItems=await dbGet(type==='movie'?'movies':type==='flight'?'flights':type==='train'?'trains':'buses')||{};
+      const allItems=await dbGet(typeToPath[type])||{};
       favData[type]={};
       for(const id of Object.keys(favs)){
         if(allItems[id]) favData[type][id]=allItems[id];
@@ -121,6 +124,8 @@
       else if(b.type==='flight') detail=`✈️ ${b.airline} &nbsp;|&nbsp; 📅 ${b.date} ${b.depart}~${b.arrive} &nbsp;|&nbsp; 💺 ${b.seat}`;
       else if(b.type==='train') detail=`🚄 ${b.trainNumber} &nbsp;|&nbsp; 📅 ${b.date} ${b.depart}~${b.arrive} &nbsp;|&nbsp; 💺 ${b.seat}`;
       else if(b.type==='bus') detail=`🚌 ${b.company} ${b.busType} &nbsp;|&nbsp; 📅 ${b.date} ${b.depart}~${b.arrive} &nbsp;|&nbsp; 💺 ${b.seat}`;
+      else if(b.type==='hotel') detail=`📍 ${b.location} &nbsp;|&nbsp; 📅 ${b.checkIn} ~ ${b.checkOut} &nbsp;|&nbsp; 🌙 ${b.nights}박 ${b.guests}명`;
+      else if(b.type==='attraction') detail=`📍 ${b.location} &nbsp;|&nbsp; 📅 ${b.visitDate} &nbsp;|&nbsp; 👥 성인 ${b.adults}명 어린이 ${b.children}명`;
       html+=`<div class="booking-card" style="${isCancelled?'opacity:.6;':''}">
         <div style="flex:1;">
           <div style="margin-bottom:8px;">
@@ -144,7 +149,7 @@
   }
 
   function renderFavorites(){
-    const typeMap={movie:{label:'영화',icon:'🎬',page:'movies.html'},flight:{label:'비행기',icon:'✈️',page:'flights.html'},train:{label:'기차',icon:'🚄',page:'trains.html'},bus:{label:'버스',icon:'🚌',page:'buses.html'}};
+    const typeMap={movie:{label:'영화',icon:'🎬',page:'movies.html'},flight:{label:'비행기',icon:'✈️',page:'flights.html'},train:{label:'기차',icon:'🚄',page:'trains.html'},bus:{label:'버스',icon:'🚌',page:'buses.html'},hotel:{label:'숙박',icon:'🏨',page:'hotels.html'},attraction:{label:'관광',icon:'🎡',page:'attractions.html'}};
     let html='', hasAny=false;
     for(const [type,items] of Object.entries(favData)){
       if(!items||!Object.keys(items).length) continue;
@@ -157,6 +162,8 @@
         else if(type==='flight'){name=`${item.from} → ${item.to}`;meta=`${item.airline} · ${item.date} ${item.depart}`;price=item.price;}
         else if(type==='train'){name=`${item.from} → ${item.to}`;meta=`${item.number} · ${item.date} ${item.depart}`;price=item.price;}
         else if(type==='bus'){name=`${item.from} → ${item.to}`;meta=`${item.company} ${item.type} · ${item.date} ${item.depart}`;price=item.price;}
+        else if(type==='hotel'){name=item.name;meta=`📍 ${item.location} · ${item.category}`;price=item.pricePerNight;}
+        else if(type==='attraction'){name=item.name;meta=`📍 ${item.location} · ${item.category}`;price=item.adultPrice;}
         html+=`<div class="fav-card">
           <div class="fav-info">
             <div class="name">${name}</div>
@@ -189,7 +196,12 @@
     cancelKey=key;
     const b=allBookings[key];
     const tl=TYPE_LABELS[b.type]||{};
-    document.getElementById('cancel-info').innerHTML=`<b>${tl.icon||''} ${b.title}</b><br>${b.type==='movie'?`${b.theater} ${b.time}`:`${b.date} ${b.depart}`} &nbsp;|&nbsp; ${b.seat}<br>환불 예정: ₩${b.price.toLocaleString()}`;
+    let cancelDetail='';
+    if(b.type==='movie') cancelDetail=`${b.theater} ${b.time} | ${b.seat}`;
+    else if(b.type==='flight'||b.type==='train'||b.type==='bus') cancelDetail=`${b.date} ${b.depart} | ${b.seat}`;
+    else if(b.type==='hotel') cancelDetail=`${b.checkIn} ~ ${b.checkOut} (${b.nights}박)`;
+    else if(b.type==='attraction') cancelDetail=`${b.visitDate} | 성인 ${b.adults}명 어린이 ${b.children}명`;
+    document.getElementById('cancel-info').innerHTML=`<b>${tl.icon||''} ${b.title}</b><br>${cancelDetail}<br>환불 예정: ₩${b.price.toLocaleString()}`;
     document.getElementById('cancel-modal').classList.add('open');
   }
 

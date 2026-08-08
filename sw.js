@@ -1,4 +1,4 @@
-const CACHE = 'nara-v2';
+const CACHE = 'nara-v3';
 const ASSETS = [
   '/',
   '/index.html',
@@ -8,6 +8,8 @@ const ASSETS = [
   '/flights.html',
   '/trains.html',
   '/buses.html',
+  '/hotels.html',
+  '/attractions.html',
   '/mybookings.html',
   '/confirm.html',
   '/admin.html',

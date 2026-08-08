@@ -163,10 +163,12 @@
   const moneyLeft  = params.get('left');
 
   const TYPE_INFO = {
-    movie:  { icon: '🎬', label: '영화 티켓' },
-    flight: { icon: '✈️', label: '항공권' },
-    train:  { icon: '🚄', label: '기차 승차권' },
-    bus:    { icon: '🚌', label: '버스 승차권' },
+    movie:      { icon: '🎬', label: '영화 티켓' },
+    flight:     { icon: '✈️', label: '항공권' },
+    train:      { icon: '🚄', label: '기차 승차권' },
+    bus:        { icon: '🚌', label: '버스 승차권' },
+    hotel:      { icon: '🏨', label: '숙박 예약서' },
+    attraction: { icon: '🎡', label: '관광 티켓' },
   };
 
   async function load() {
@@ -212,6 +214,21 @@
           <div class="ticket-row"><span class="label">날짜</span><span class="value">${b.date}</span></div>
           <div class="ticket-row"><span class="label">시간</span><span class="value">${b.depart} → ${b.arrive}</span></div>
           <div class="ticket-row"><span class="label">좌석</span><span class="value">${b.seat}</span></div>`;
+      } else if (b.type === 'hotel') {
+        subtitle = `${b.category} · ${b.checkIn} ~ ${b.checkOut}`;
+        bodyRows = `
+          <div class="ticket-row"><span class="label">위치</span><span class="value">${b.location}</span></div>
+          <div class="ticket-row"><span class="label">체크인</span><span class="value">${b.checkIn}</span></div>
+          <div class="ticket-row"><span class="label">체크아웃</span><span class="value">${b.checkOut}</span></div>
+          <div class="ticket-row"><span class="label">숙박</span><span class="value">${b.nights}박</span></div>
+          <div class="ticket-row"><span class="label">인원</span><span class="value">${b.guests}명</span></div>`;
+      } else if (b.type === 'attraction') {
+        subtitle = `${b.category} · ${b.visitDate}`;
+        bodyRows = `
+          <div class="ticket-row"><span class="label">위치</span><span class="value">${b.location}</span></div>
+          <div class="ticket-row"><span class="label">방문일</span><span class="value">${b.visitDate}</span></div>
+          <div class="ticket-row"><span class="label">성인</span><span class="value">${b.adults}명 × ₩${(b.adultPrice||0).toLocaleString()}</span></div>
+          <div class="ticket-row"><span class="label">어린이</span><span class="value">${b.children}명 × ₩${(b.childPrice||0).toLocaleString()}</span></div>`;
       }
 
       bodyRows += `
