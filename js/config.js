@@ -152,10 +152,7 @@ function renderHeader(activePage) {
         ${mobileUserHTML}
       </div>
     </div>
-    <script>
-      function toggleMobileNav(){document.getElementById('mobile-nav').classList.toggle('open');}
-      function closeMobileNav(){document.getElementById('mobile-nav').classList.remove('open');}
-    </script>`;
+    `;
 }
 
 // ===== 날짜 포맷 =====
@@ -213,6 +210,10 @@ const TYPE_LABELS = {
   train: { label: '기차', icon: '🚄', color: 'badge-green' },
   bus: { label: '버스', icon: '🚌', color: 'badge-gray' },
 };
+
+// ===== 모바일 메뉴 =====
+function toggleMobileNav() { document.getElementById('mobile-nav').classList.toggle('open'); }
+function closeMobileNav() { document.getElementById('mobile-nav').classList.remove('open'); }
 
 // ===== 초기 샘플 데이터 삽입 =====
 async function seedIfEmpty() {
