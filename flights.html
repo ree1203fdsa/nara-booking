@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="ko">
 <head>
   <meta charset="UTF-8">
@@ -16,11 +16,7 @@
     .search-bar { background:white; border-radius:12px; padding:20px; box-shadow:var(--shadow); border:1px solid var(--border); margin-bottom:24px; display:flex; gap:12px; flex-wrap:wrap; align-items:flex-end; }
     .search-bar .form-group { margin:0; flex:1; min-width:130px; }
     .flight-list { display:flex; flex-direction:column; gap:14px; }
-    .flight-card {
-      background:white; border-radius:12px; border:1.5px solid var(--border);
-      padding:20px 24px; display:grid; grid-template-columns:1fr auto 1fr auto auto auto;
-      align-items:center; gap:16px; box-shadow:var(--shadow); transition:border-color .2s; position:relative;
-    }
+    .flight-card { background:white; border-radius:12px; border:1.5px solid var(--border); padding:20px 24px; display:grid; grid-template-columns:1fr auto 1fr auto auto auto; align-items:center; gap:16px; box-shadow:var(--shadow); transition:border-color .2s; }
     .flight-card:hover { border-color:var(--primary-light); }
     .flight-time { font-size:1.4rem; font-weight:800; color:var(--primary); }
     .flight-city { font-size:.82rem; color:var(--text-muted); }
@@ -32,7 +28,91 @@
     .money-bar { background:#f0f9ff; border:1px solid #bae6fd; border-radius:8px; padding:10px 14px; margin-bottom:14px; font-size:.85rem; display:flex; justify-content:space-between; align-items:center; }
     .money-bar .label { color:#0369a1; }
     .money-bar .amount { font-weight:700; color:#0c4a6e; }
-    @media(max-width:640px){ .flight-card { grid-template-columns:1fr 1fr; } .flight-arrow,.fav-btn { display:none; } }
+
+    /* ===== 비행기 좌석 지도 ===== */
+    .plane-modal { max-width:700px; }
+    .plane-wrap {
+      overflow-x:auto; overflow-y:auto; max-height:54vh;
+      padding:0 12px 8px;
+    }
+    .plane-map { min-width:440px; margin:0 auto; }
+
+    /* 기수 / 꼬리 */
+    .plane-nose {
+      width:120px; height:36px; margin:0 auto 0;
+      background:linear-gradient(to bottom,#e8ecf2,#d1d8e4);
+      border-radius:60px 60px 0 0;
+      border:1.5px solid #c5cdd8; border-bottom:none;
+    }
+    .plane-tail {
+      width:90px; height:28px; margin:0 auto;
+      background:linear-gradient(to top,#e8ecf2,#d1d8e4);
+      border-radius:0 0 50px 50px;
+      border:1.5px solid #c5cdd8; border-top:none;
+    }
+
+    /* 동체 */
+    .fuselage {
+      border-left:2.5px solid #c5cdd8;
+      border-right:2.5px solid #c5cdd8;
+      padding:4px 0;
+      background:#fafbfc;
+    }
+
+    /* 컬럼 헤더 */
+    .col-header-row { display:flex; align-items:center; justify-content:center; gap:0; padding:4px 0 6px; }
+    .col-lbl { width:30px; text-align:center; font-size:.75rem; font-weight:800; color:#374151; }
+    .aisle-num { width:44px; text-align:center; font-size:.7rem; color:transparent; }
+    .aisle-gap { width:36px; }
+
+    /* 좌석 행 */
+    .seat-row { display:flex; align-items:center; justify-content:center; gap:0; margin-bottom:3px; position:relative; }
+    .seat-group { display:flex; gap:3px; }
+    .row-num-cell { width:44px; text-align:center; font-size:.72rem; font-weight:700; color:#6b7280; flex-shrink:0; }
+    .aisle-cell { width:36px; display:flex; align-items:center; justify-content:center; gap:4px; flex-shrink:0; }
+
+    /* 좌석 */
+    .ps {
+      width:30px; height:30px;
+      border-radius:6px 6px 4px 4px;
+      border:1.5px solid #d1d5db;
+      background:white;
+      cursor:pointer;
+      font-size:.6rem; font-weight:700; color:#9ca3af;
+      display:flex; align-items:center; justify-content:center;
+      transition:all .12s; user-select:none;
+      box-shadow:0 1px 2px rgba(0,0,0,.06);
+    }
+    .ps:hover:not(.booked):not(.exit-seat-gray) { background:#dbeafe; border-color:#3b82f6; color:#1d4ed8; }
+    .ps.selected { background:#1a3a6b; border-color:#1a3a6b; color:white; box-shadow:0 2px 6px rgba(26,58,107,.35); }
+    .ps.booked { background:#e5e7eb; border-color:#d1d5db; cursor:not-allowed; color:#d1d5db; }
+    .ps.exit-seat { border-color:#fb923c !important; }
+
+    /* 비상구 행 */
+    .exit-row { display:flex; align-items:center; justify-content:center; margin:5px 0; gap:0; }
+    .exit-side { font-size:.65rem; color:#dc2626; font-weight:800; display:flex; align-items:center; gap:3px; flex:1; }
+    .exit-side.left { justify-content:flex-end; padding-right:8px; }
+    .exit-side.right { justify-content:flex-start; padding-left:8px; }
+    .exit-line { flex:1; border-top:1.5px dashed #fca5a5; }
+    .exit-center { width:44px; }
+
+    /* 갤리/화장실 섹션 */
+    .galley-row { display:flex; align-items:center; justify-content:center; margin:6px 0; }
+    .galley-box { display:flex; gap:16px; align-items:center; justify-content:center; background:#f1f5f9; border-radius:8px; padding:6px 20px; font-size:1.1rem; }
+
+    /* 날개 */
+    .wing-row { position:relative; }
+    .wing-l { position:absolute; left:-28px; top:50%; transform:translateY(-50%); font-size:1.4rem; opacity:.35; }
+    .wing-r { position:absolute; right:-28px; top:50%; transform:translateY(-50%); font-size:1.4rem; opacity:.35; transform:translateY(-50%) scaleX(-1); }
+
+    /* 범례 */
+    .legend { display:flex; gap:16px; flex-wrap:wrap; font-size:.78rem; color:var(--text-muted); margin:10px 0 6px; justify-content:center; }
+    .legend-item { display:flex; align-items:center; gap:5px; }
+    .legend-box { width:16px; height:16px; border-radius:4px; border:1.5px solid #d1d5db; }
+    .legend-box.sel { background:#1a3a6b; border-color:#1a3a6b; }
+    .legend-box.taken { background:#e5e7eb; border-color:#d1d5db; }
+
+    @media(max-width:640px) { .flight-card { grid-template-columns:1fr 1fr; } .flight-arrow,.fav-btn { display:none; } }
   </style>
 </head>
 <body>
@@ -51,24 +131,29 @@
   <div id="content"><div class="loading"><div class="spinner"></div>불러오는 중...</div></div>
 </div>
 
+<!-- 예매 모달 -->
 <div class="modal-overlay" id="booking-modal">
-  <div class="modal">
+  <div class="modal plane-modal">
     <div class="modal-header">
-      <span class="modal-title">좌석 선택</span>
+      <span class="modal-title">✈️ 좌석 선택</span>
       <button class="modal-close" onclick="closeModal()">✕</button>
     </div>
-    <div id="modal-info" style="margin-bottom:12px; padding:12px; background:#f8fafc; border-radius:8px; font-size:.88rem; color:var(--text-muted); line-height:1.8;"></div>
+    <div id="modal-info" style="margin-bottom:10px;padding:10px 14px;background:#f8fafc;border-radius:8px;font-size:.85rem;color:var(--text-muted);line-height:1.8;"></div>
     <div class="money-bar"><span class="label">💰 내 게임 머니</span><span class="amount" id="user-money">조회 중...</span></div>
-    <p style="font-size:.85rem; font-weight:600; color:var(--text-muted); margin-bottom:8px;">좌석 선택</p>
-    <div class="seat-grid" id="seat-grid"></div>
-    <div class="seat-legend">
-      <div class="seat-legend-item"><div class="seat-legend-box"></div>선택 가능</div>
-      <div class="seat-legend-item"><div class="seat-legend-box selected"></div>선택됨</div>
-      <div class="seat-legend-item"><div class="seat-legend-box booked"></div>예매됨</div>
+    <p style="font-size:.82rem;font-weight:600;color:var(--text-muted);margin-bottom:6px;text-align:center;">원하시는 좌석을 선택해주세요.</p>
+
+    <div class="plane-wrap">
+      <div class="plane-map" id="plane-map"></div>
     </div>
-    <div id="selected-info" style="margin-top:14px; padding:10px; background:#f0f7ff; border-radius:8px; font-size:.88rem; display:none;"></div>
-    <div id="alert-modal" style="margin-top:10px;"></div>
-    <div style="display:flex; gap:10px; margin-top:20px;">
+
+    <div class="legend">
+      <div class="legend-item"><div class="legend-box"></div>선택 가능</div>
+      <div class="legend-item"><div class="legend-box sel"></div>선택됨</div>
+      <div class="legend-item"><div class="legend-box taken"></div>예매됨</div>
+    </div>
+    <div id="selected-info" style="margin-top:6px;padding:10px;background:#f0f7ff;border-radius:8px;font-size:.88rem;display:none;text-align:center;"></div>
+    <div id="alert-modal" style="margin-top:8px;"></div>
+    <div style="display:flex;gap:10px;margin-top:14px;">
       <button class="btn btn-outline" style="flex:1;" onclick="closeModal()">취소</button>
       <button class="btn btn-accent" style="flex:1;" id="confirm-btn" onclick="confirmBooking()">예매 확정</button>
     </div>
@@ -79,6 +164,16 @@
 <script>
   document.getElementById('header-wrap').innerHTML = renderHeader('flights');
   let flights={}, bookedSeats={}, filtered={}, favorites={}, currentFlight=null, selectedSeat=null;
+
+  // 좌석 배치 설정
+  const COLS_LEFT  = ['A','B','C'];
+  const COLS_MID   = ['D','E','F'];
+  const COLS_RIGHT = ['G','H','J'];
+  // 일반 행 번호 (5번 = 비상구 앞, 16-18 = 갤리 구간)
+  const ROWS_FRONT = [1,2,3,4];   // 앞 구역
+  const ROWS_REAR  = [6,7,8,9,10,11,12,13,14,15,19,20,21,22,23,24,25,26,27,28,29,30,31,32];
+  const EXIT_BEFORE = [6, 19];    // 이 행 앞에 비상구 표시
+  const WING_ROWS  = new Set([10,11,12,13,14,15]); // 날개 구간
 
   async function load() {
     try {
@@ -107,19 +202,23 @@
     render(filtered);
   }
 
-  function left(id,total){ return total-(bookedSeats[id]||[]).length; }
+  function totalSeats(id) {
+    const f = flights[id];
+    return (ROWS_FRONT.length + ROWS_REAR.length) * 9;
+  }
+  function left(id){ return totalSeats(id)-(bookedSeats[id]||[]).length; }
   function isFav(id){ return !!(favorites.flight && favorites.flight[id]); }
 
   function render(list) {
     if (!Object.keys(list).length) { document.getElementById('content').innerHTML='<div class="empty-state"><div class="icon">✈️</div><p>검색 결과가 없습니다.</p></div>'; return; }
     let html='<div class="flight-list">';
     for (const [id,f] of Object.entries(list)) {
-      const rem=left(id,f.seats), soldOut=rem<=0;
+      const rem=left(id), total=totalSeats(id), soldOut=rem<=0;
       html+=`<div class="flight-card">
         <div><div class="flight-time">${f.depart}</div><div class="flight-city">${f.from}</div></div>
         <div class="flight-arrow"><div style="font-size:.75rem;">${f.airline}</div><div class="arrow-line"></div><div style="font-size:.75rem;">${f.date}</div></div>
         <div><div class="flight-time">${f.arrive}</div><div class="flight-city">${f.to}</div></div>
-        <div style="font-size:.85rem;">${seatBadge(rem,f.seats)}<br><span class="badge badge-blue" style="margin-top:4px;">${f.class}</span></div>
+        <div style="font-size:.85rem;">${seatBadge(rem,total)}<br><span class="badge badge-blue" style="margin-top:4px;">${f.class}</span></div>
         <div style="text-align:right;"><div style="font-size:1.2rem;font-weight:800;color:var(--primary);">₩${f.price.toLocaleString()}</div>
           <button class="btn btn-accent btn-sm" style="margin-top:8px;" onclick="openModal('${id}')" ${soldOut?'disabled style="opacity:.5;"':''}>예매하기</button></div>
         <button class="fav-btn ${isFav(id)?'active':''}" id="fav-flight-${id}" onclick="doToggleFav('flight','${id}',this)" title="찜">♥</button>
@@ -144,52 +243,111 @@
     const user=getUser(); if(!user){if(confirm('로그인이 필요합니다.'))window.location.href='login.html';return;}
     currentFlight=id; selectedSeat=null;
     const f=flights[id];
-    document.getElementById('modal-info').innerHTML=`✈️ <b>${f.airline}</b> &nbsp;|&nbsp; ${f.from} → ${f.to}<br>📅 ${f.date} &nbsp;|&nbsp; 🕐 ${f.depart}→${f.arrive} &nbsp;|&nbsp; 💰 ₩${f.price.toLocaleString()}`;
+    document.getElementById('modal-info').innerHTML=`✈️ <b>${f.airline}</b> &nbsp;|&nbsp; ${f.from} → ${f.to}<br>📅 ${f.date} &nbsp;|&nbsp; 🕐 ${f.depart} → ${f.arrive} &nbsp;|&nbsp; 💰 ₩${f.price.toLocaleString()}`;
     document.getElementById('selected-info').style.display='none';
     document.getElementById('alert-modal').innerHTML='';
     getUserMoney(user.uid).then(m=>{ document.getElementById('user-money').textContent=`₩${m.toLocaleString()}`; }).catch(()=>{});
-    renderSeats(id,f.seats);
+    buildSeatMap(id);
     document.getElementById('booking-modal').classList.add('open');
   }
 
-  function renderSeats(id,total) {
-    const taken=bookedSeats[id]||[], cols=6, rows=Math.ceil(total/cols);
-    let html='';
-    for(let r=0;r<rows;r++) for(let c=0;c<cols;c++) {
-      const num=r*cols+c+1; if(num>total) break;
-      const label=`${String.fromCharCode(65+r)}${c+1}`, isBooked=taken.includes(label);
-      html+=`<div class="seat${isBooked?' booked':''}" onclick="selectSeat('${label}',this)">${label}</div>`;
+  function seatLabel(row, col) { return `${row}${col}`; }
+
+  function buildSeatMap(id) {
+    const taken = new Set(bookedSeats[id]||[]);
+    const el = document.getElementById('plane-map');
+
+    function makeGroupHtml(row, cols) {
+      return cols.map(col => {
+        const lbl = seatLabel(row, col);
+        const isBooked = taken.has(lbl);
+        const isExit = EXIT_BEFORE.includes(row) || EXIT_BEFORE.includes(row+1);
+        return `<div class="ps${isBooked?' booked':''}${!isBooked&&isExit?' exit-seat':''}"
+          onclick="selectSeat('${lbl}',this)" data-seat="${lbl}" title="${lbl}">${lbl}</div>`;
+      }).join('');
     }
-    document.getElementById('seat-grid').innerHTML=html;
+
+    function rowHtml(rowNum, extraClass='') {
+      const isWing = WING_ROWS.has(rowNum);
+      return `<div class="seat-row${extraClass?' '+extraClass:''}${isWing?' wing-row':''}">
+        ${isWing?'<span class="wing-l">🛩</span>':''}
+        <div class="seat-group">${makeGroupHtml(rowNum, COLS_LEFT)}</div>
+        <div class="row-num-cell">${rowNum}</div>
+        <div class="seat-group">${makeGroupHtml(rowNum, COLS_MID)}</div>
+        <div class="aisle-cell">
+          ${rowNum===8?'<span title="화장실" style="font-size:1rem;">🚻</span>':''}
+        </div>
+        <div class="seat-group">${makeGroupHtml(rowNum, COLS_RIGHT)}</div>
+        ${isWing?'<span class="wing-r">🛩</span>':''}
+      </div>`;
+    }
+
+    function exitRowHtml() {
+      return `<div class="exit-row">
+        <div class="exit-side left">← <b>비상구</b></div>
+        <div class="row-num-cell"></div>
+        <div class="exit-side" style="opacity:0;flex:1;"></div>
+        <div class="aisle-cell"></div>
+        <div class="exit-side right"><b>비상구</b> →</div>
+      </div>`;
+    }
+
+    function colHeaderHtml() {
+      return `<div class="col-header-row">
+        ${COLS_LEFT.map(c=>`<div class="col-lbl">${c}</div>`).join('')}
+        <div class="aisle-num"></div>
+        ${COLS_MID.map(c=>`<div class="col-lbl">${c}</div>`).join('')}
+        <div class="aisle-gap"></div>
+        ${COLS_RIGHT.map(c=>`<div class="col-lbl">${c}</div>`).join('')}
+      </div>`;
+    }
+
+    let html = '';
+    html += '<div class="plane-nose"></div>';
+    html += '<div class="fuselage">';
+    html += colHeaderHtml();
+    ROWS_FRONT.forEach(r => { html += rowHtml(r); });
+    html += exitRowHtml();
+    ROWS_REAR.forEach((r, i) => {
+      if (r === 19) {
+        // 갤리/화장실 섹션
+        html += `<div class="galley-row"><div class="galley-box"><span title="화장실">🚻</span><span title="갤리">☕</span></div></div>`;
+        html += exitRowHtml();
+      }
+      html += rowHtml(r);
+    });
+    html += '</div>';
+    html += '<div class="plane-tail"></div>';
+    el.innerHTML = html;
   }
 
-  function selectSeat(label,el) {
-    if(el.classList.contains('booked')) return;
-    document.querySelectorAll('.seat.selected').forEach(s=>s.classList.remove('selected'));
-    el.classList.add('selected'); selectedSeat=label;
-    const f=flights[currentFlight];
-    const info=document.getElementById('selected-info');
-    info.style.display='block';
-    info.innerHTML=`선택 좌석: <b>${label}</b> &nbsp;|&nbsp; 결제: <b>₩${f.price.toLocaleString()}</b>`;
+  function selectSeat(label, el) {
+    if (el.classList.contains('booked')) return;
+    document.querySelectorAll('.ps.selected').forEach(s => s.classList.remove('selected'));
+    el.classList.add('selected');
+    selectedSeat = label;
+    const f = flights[currentFlight];
+    const info = document.getElementById('selected-info');
+    info.style.display = 'block';
+    info.innerHTML = `선택 좌석: <b style="color:var(--primary);font-size:1rem;">${label}</b> &nbsp;|&nbsp; 결제: <b>₩${f.price.toLocaleString()}</b>`;
   }
 
-  function closeModal(){ document.getElementById('booking-modal').classList.remove('open'); }
+  function closeModal() { document.getElementById('booking-modal').classList.remove('open'); }
 
   async function confirmBooking() {
     if(!selectedSeat){ document.getElementById('alert-modal').innerHTML='<div class="alert alert-error">좌석을 선택해 주세요.</div>'; return; }
     const user=getUser(), f=flights[currentFlight];
     const btn=document.getElementById('confirm-btn'); btn.textContent='처리 중...'; btn.disabled=true;
     try {
-      const money=await getUserMoney(user.uid);
-      if(money<f.price){ document.getElementById('alert-modal').innerHTML=`<div class="alert alert-error">게임 머니 부족!<br>현재: ₩${money.toLocaleString()} / 필요: ₩${f.price.toLocaleString()}</div>`; return; }
-      const result=await dbPush('bookings',{ type:'flight', userId:user.uid, userName:user.name, itemId:currentFlight, title:`${f.from} → ${f.to}`, airline:f.airline, date:f.date, depart:f.depart, arrive:f.arrive, seat:selectedSeat, price:f.price, status:'예매완료', bookedAt:Date.now() });
-      const remaining=await deductMoney(user.uid,f.price);
-      window.location.href=`confirm.html?id=${result.name}&spent=${f.price}&left=${remaining}`;
+      const remaining=await deductMoney(user.uid, f.price);
+      const res=await dbPush('bookings',{ type:'flight', userId:user.uid, userName:user.name, itemId:currentFlight, title:`${f.from} → ${f.to}`, airline:f.airline, date:f.date, depart:f.depart, arrive:f.arrive, seat:selectedSeat, price:f.price, status:'예매완료', bookedAt:Date.now() });
+      window.location.href=`confirm.html?id=${res.name}&spent=${f.price}&left=${remaining}`;
     } catch(e){ document.getElementById('alert-modal').innerHTML=`<div class="alert alert-error">${e.message||'오류가 발생했습니다.'}</div>`; }
     finally { btn.textContent='예매 확정'; btn.disabled=false; }
   }
 
   load();
 </script>
-<script>if('serviceWorker'in navigator)navigator.serviceWorker.register('/sw.js');</script></body>
+<script>if('serviceWorker'in navigator)navigator.serviceWorker.register('/sw.js');</script>
+</body>
 </html>
