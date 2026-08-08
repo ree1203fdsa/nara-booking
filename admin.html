@@ -73,6 +73,7 @@
     <button class="admin-tab" onclick="showTab('buses')">버스 관리</button>
     <button class="admin-tab" onclick="showTab('users')">회원 관리</button>
     <button class="admin-tab" onclick="showTab('notices')">📢 공지사항</button>
+    <button class="admin-tab" onclick="showTab('coupons')">🎁 쿠폰 관리</button>
   </div>
 
   <!-- 대시보드 -->
@@ -175,6 +176,39 @@
       <button class="btn btn-accent btn-sm" onclick="openNoticeModal()">+ 공지 작성</button>
     </div>
     <div id="notices-list"><div class="loading"><div class="spinner"></div></div></div>
+  </div>
+
+  <!-- 쿠폰 관리 -->
+  <div id="tab-coupons" class="tab-panel">
+    <div class="section-actions">
+      <h3>쿠폰 목록</h3>
+      <button class="btn btn-accent btn-sm" onclick="openCouponModal()">+ 쿠폰 생성</button>
+    </div>
+    <div class="card table-wrap" id="coupons-table"><div class="loading"><div class="spinner"></div></div></div>
+  </div>
+</div>
+
+<!-- 쿠폰 모달 -->
+<div class="modal-overlay" id="coupon-modal">
+  <div class="modal" style="max-width:440px;">
+    <div class="modal-header">
+      <span class="modal-title">🎁 쿠폰 생성</span>
+      <button class="modal-close" onclick="document.getElementById('coupon-modal').classList.remove('open')">✕</button>
+    </div>
+    <div class="form-group"><label>쿠폰 코드 (영문/숫자)</label><input type="text" id="c-code" placeholder="SUMMER10" style="text-transform:uppercase;"></div>
+    <div class="form-group"><label>쿠폰 이름</label><input type="text" id="c-name" placeholder="여름 특별 할인"></div>
+    <div class="form-row">
+      <div class="form-group"><label>할인 유형</label>
+        <select id="c-type"><option value="fixed">정액 (원)</option><option value="percent">정률 (%)</option></select>
+      </div>
+      <div class="form-group"><label>할인 값</label><input type="number" id="c-discount" placeholder="5000" min="1"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>최소 결제금액 (0=제한없음)</label><input type="number" id="c-minamount" value="0" min="0"></div>
+      <div class="form-group"><label>최대 사용 횟수 (0=무제한)</label><input type="number" id="c-maxuses" value="0" min="0"></div>
+    </div>
+    <div id="coupon-modal-alert" class="alert alert-error" style="display:none;"></div>
+    <button class="btn btn-accent btn-full" onclick="saveCoupon()">쿠폰 생성</button>
   </div>
 </div>
 
@@ -583,6 +617,7 @@
     document.getElementById(`tab-${name}`).classList.add('active');
     event.target.classList.add('active');
     if (name === 'notices') renderNotices();
+    if (name === 'coupons') renderCoupons();
   }
 
   // ===== 인기 노선 통계 차트 =====
@@ -695,6 +730,64 @@
   async function loadAllWithCharts() {
     await _origLoadAll.call(this);
     setTimeout(drawCharts, 100);
+  }
+
+  // ===== 쿠폰 관리 =====
+  async function renderCoupons() {
+    const el = document.getElementById('coupons-table');
+    el.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+    const coupons = await dbGet('coupons') || {};
+    const rows = Object.entries(coupons);
+    if (!rows.length) { el.innerHTML = '<div class="empty-state"><div class="icon">🎁</div><p>등록된 쿠폰이 없습니다.</p></div>'; return; }
+    el.innerHTML = `<table><thead><tr>
+      <th>코드</th><th>이름</th><th>할인</th><th>최소금액</th><th>사용/최대</th><th>상태</th><th>관리</th>
+    </tr></thead><tbody>${rows.map(([code, c]) => `<tr>
+      <td><b style="font-family:monospace;">${code}</b></td>
+      <td>${c.name}</td>
+      <td>${c.type==='percent'?`${c.discount}%`:`₩${c.discount.toLocaleString()}`}</td>
+      <td>${c.minAmount?`₩${c.minAmount.toLocaleString()}`:'-'}</td>
+      <td>${c.uses||0} / ${c.maxUses||'무제한'}</td>
+      <td><span class="badge ${c.active?'badge-green':'badge-red'}">${c.active?'활성':'비활성'}</span></td>
+      <td style="display:flex;gap:6px;">
+        <button class="btn btn-outline btn-sm" onclick="toggleCoupon('${code}',${!!c.active})">${c.active?'비활성화':'활성화'}</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteCoupon('${code}')">삭제</button>
+      </td>
+    </tr>`).join('')}</tbody></table>`;
+  }
+
+  function openCouponModal() {
+    ['c-code','c-name','c-discount'].forEach(id => document.getElementById(id).value='');
+    document.getElementById('c-type').value='fixed';
+    document.getElementById('c-minamount').value=0;
+    document.getElementById('c-maxuses').value=0;
+    document.getElementById('coupon-modal-alert').style.display='none';
+    document.getElementById('coupon-modal').classList.add('open');
+  }
+
+  async function saveCoupon() {
+    const code = document.getElementById('c-code').value.trim().toUpperCase();
+    const name = document.getElementById('c-name').value.trim();
+    const type = document.getElementById('c-type').value;
+    const discount = parseInt(document.getElementById('c-discount').value)||0;
+    const minAmount = parseInt(document.getElementById('c-minamount').value)||0;
+    const maxUses = parseInt(document.getElementById('c-maxuses').value)||0;
+    const alertEl = document.getElementById('coupon-modal-alert');
+    if (!code||!name||!discount) { alertEl.textContent='코드, 이름, 할인 값을 모두 입력해 주세요.'; alertEl.style.display='flex'; return; }
+    if (!/^[A-Z0-9]+$/.test(code)) { alertEl.textContent='코드는 영문 대문자/숫자만 사용 가능합니다.'; alertEl.style.display='flex'; return; }
+    await dbSet(`coupons/${code}`, { name, discount, type, minAmount, maxUses, uses:0, active:true, createdAt:Date.now() });
+    document.getElementById('coupon-modal').classList.remove('open');
+    renderCoupons();
+  }
+
+  async function toggleCoupon(code, isActive) {
+    await dbSet(`coupons/${code}/active`, !isActive);
+    renderCoupons();
+  }
+
+  async function deleteCoupon(code) {
+    if (!confirm(`쿠폰 [${code}]을 삭제하시겠습니까?`)) return;
+    await dbDelete(`coupons/${code}`);
+    renderCoupons();
   }
 
   loadAll();

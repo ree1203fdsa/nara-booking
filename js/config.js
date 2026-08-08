@@ -219,11 +219,42 @@ const TYPE_LABELS = {
 function toggleMobileNav() { document.getElementById('mobile-nav').classList.toggle('open'); }
 function closeMobileNav() { document.getElementById('mobile-nav').classList.remove('open'); }
 
+// ===== 쿠폰 =====
+async function validateCoupon(code, amount) {
+  const c = await dbGet(`coupons/${code.trim().toUpperCase()}`);
+  if (!c || !c.active) throw new Error('유효하지 않은 쿠폰입니다.');
+  if (c.maxUses > 0 && (c.uses || 0) >= c.maxUses) throw new Error('사용 횟수가 초과된 쿠폰입니다.');
+  if (c.minAmount && amount < c.minAmount) throw new Error(`최소 결제금액 ₩${c.minAmount.toLocaleString()} 이상에서 사용 가능합니다.`);
+  const discount = c.type === 'percent' ? Math.floor(amount * c.discount / 100) : c.discount;
+  return { discount: Math.min(discount, amount), name: c.name };
+}
+
+async function useCoupon(code) {
+  const c = await dbGet(`coupons/${code.trim().toUpperCase()}`);
+  await dbSet(`coupons/${code.trim().toUpperCase()}/uses`, (c.uses || 0) + 1);
+}
+
+// ===== 리뷰/별점 =====
+async function loadRatings(type) {
+  const reviews = await dbGet(`reviews/${type}`) || {};
+  const result = {};
+  for (const [id, items] of Object.entries(reviews)) {
+    const vals = Object.values(items).map(r => r.rating).filter(Boolean);
+    if (vals.length) result[id] = { avg: (vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(1), count: vals.length };
+  }
+  return result;
+}
+
+function ratingHTML(r) {
+  if (!r) return '';
+  return `<span style="color:#f59e0b;font-size:.82rem;font-weight:600;">★ ${r.avg}</span><span style="font-size:.75rem;color:var(--text-muted);margin-left:3px;">(${r.count}건)</span>`;
+}
+
 // ===== 초기 샘플 데이터 삽입 =====
 async function seedIfEmpty() {
-  const [movies, flights, trains, buses, hotels, attractions] = await Promise.all([
+  const [movies, flights, trains, buses, hotels, attractions, coupons] = await Promise.all([
     dbGet('movies'), dbGet('flights'), dbGet('trains'), dbGet('buses'),
-    dbGet('hotels'), dbGet('attractions')
+    dbGet('hotels'), dbGet('attractions'), dbGet('coupons')
   ]);
 
   if (!movies) await dbSet('movies', {
@@ -265,6 +296,12 @@ async function seedIfEmpty() {
     c1: { name: '가평 나라캠핑파크', location: '경기 가평', category: '캠핑장', stars: 0, pricePerNight: 45000, totalRooms: 30, amenities: ['전기연결', '샤워실', '바베큐'], img: '⛺' },
     c2: { name: '설악 오토캠핑장', location: '강원 속초', category: '캠핑장', stars: 0, pricePerNight: 35000, totalRooms: 50, amenities: ['전기연결', '화장실', '개수대'], img: '⛺' },
     c3: { name: '남해 글램핑 리조트', location: '경남 남해', category: '캠핑장', stars: 0, pricePerNight: 130000, totalRooms: 15, amenities: ['글램핑', '조식제공', '바베큐'], img: '🏕️' },
+  });
+
+  if (!coupons) await dbSet('coupons', {
+    'NARA10': { name: '나라예매 10% 할인', discount: 10, type: 'percent', minAmount: 20000, uses: 0, maxUses: 0, active: true, createdAt: Date.now() },
+    'SUMMER5000': { name: '여름 특별 5000원 할인', discount: 5000, type: 'fixed', minAmount: 30000, uses: 0, maxUses: 100, active: true, createdAt: Date.now() },
+    'WELCOME': { name: '신규 가입 환영 쿠폰', discount: 3000, type: 'fixed', minAmount: 0, uses: 0, maxUses: 0, active: true, createdAt: Date.now() },
   });
 
   if (!attractions) await dbSet('attractions', {

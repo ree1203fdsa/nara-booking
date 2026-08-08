@@ -88,6 +88,14 @@
       <div class="row"><span>박수</span><span id="pp-nights"></span></div>
       <div class="row total"><span>결제 금액</span><span id="pp-total"></span></div>
     </div>
+    <div style="margin-bottom:16px;">
+      <div style="font-size:.82rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px;">쿠폰 코드</div>
+      <div style="display:flex;gap:8px;">
+        <input type="text" id="m-coupon" placeholder="쿠폰 코드 입력 (예: NARA10)" style="flex:1;padding:10px 14px;border:1.5px solid var(--border);border-radius:8px;font-size:.95rem;text-transform:uppercase;outline:none;">
+        <button class="btn btn-outline btn-sm" onclick="applyCoupon()">적용</button>
+      </div>
+      <div id="coupon-msg" style="font-size:.82rem;margin-top:6px;"></div>
+    </div>
     <div id="m-alert" class="alert alert-error" style="display:none;"></div>
     <button class="btn btn-accent btn-full" id="m-book-btn" onclick="confirmBooking()">예약하기</button>
   </div>
@@ -98,7 +106,8 @@
   document.getElementById('header-wrap').innerHTML = renderHeader('hotels');
   seedIfEmpty();
 
-  let allHotels = {}, currentFilter = '전체', selectedId = null, userFavs = {};
+  let allHotels = {}, currentFilter = '전체', selectedId = null, userFavs = {}, ratings = {};
+  let couponDiscount = 0, appliedCoupon = '';
   const user = getUser();
 
   async function init() {
@@ -111,7 +120,8 @@
       } catch(e) {}
     }
     try {
-      allHotels = await dbGet('hotels') || {};
+      [allHotels, ratings] = await Promise.all([dbGet('hotels'), loadRatings('hotel')]);
+      allHotels = allHotels || {};
       render();
     } catch(e) {
       document.getElementById('hotel-list').innerHTML = '<div class="alert alert-error">데이터를 불러올 수 없습니다.</div>';
@@ -142,6 +152,7 @@
             <span class="hotel-name">${h.name}</span>
             <span class="badge ${h.category==='호텔'?'badge-blue':'badge-green'}">${h.category}</span>
             ${stars ? `<span class="hotel-stars">${stars}</span>` : ''}
+            ${ratingHTML(ratings[id])}
           </div>
           <div class="hotel-location">📍 ${h.location}</div>
           <div class="hotel-amenities">${amenities}</div>
@@ -177,6 +188,9 @@
     document.getElementById('m-info').innerHTML = `<b>${h.img} ${h.name}</b><br>📍 ${h.location} &nbsp;|&nbsp; 1박 ₩${h.pricePerNight.toLocaleString()}`;
     document.getElementById('m-alert').style.display = 'none';
     document.getElementById('price-preview').style.display = 'none';
+    document.getElementById('m-coupon').value = '';
+    document.getElementById('coupon-msg').textContent = '';
+    couponDiscount = 0; appliedCoupon = '';
     // set min dates
     const today = new Date().toISOString().split('T')[0];
     const tomorrow = new Date(Date.now()+86400000).toISOString().split('T')[0];
@@ -203,8 +217,29 @@
     const total = nights * h.pricePerNight;
     document.getElementById('pp-rate').textContent = `₩${h.pricePerNight.toLocaleString()}/박`;
     document.getElementById('pp-nights').textContent = `${nights}박`;
-    document.getElementById('pp-total').textContent = `₩${total.toLocaleString()}`;
+    const finalTotal = Math.max(0, total - couponDiscount);
+    document.getElementById('pp-total').textContent = couponDiscount > 0
+      ? `₩${finalTotal.toLocaleString()} (₩${couponDiscount.toLocaleString()} 할인)`
+      : `₩${total.toLocaleString()}`;
     document.getElementById('price-preview').style.display = 'block';
+  }
+
+  async function applyCoupon() {
+    const code = document.getElementById('m-coupon').value.trim();
+    const msgEl = document.getElementById('coupon-msg');
+    if (!code) return;
+    const h = allHotels[selectedId];
+    const ci = document.getElementById('m-checkin').value;
+    const co = document.getElementById('m-checkout').value;
+    if (!ci || !co || co <= ci) { msgEl.style.color='#dc2626'; msgEl.textContent='날짜를 먼저 선택해 주세요.'; return; }
+    const nights = Math.round((new Date(co)-new Date(ci))/(1000*60*60*24));
+    const basePrice = nights * h.pricePerNight;
+    try {
+      const result = await validateCoupon(code, basePrice);
+      couponDiscount = result.discount; appliedCoupon = code;
+      msgEl.style.color='#15803d'; msgEl.textContent=`✅ ${result.name} — ₩${result.discount.toLocaleString()} 할인 적용!`;
+      calcPrice();
+    } catch(e) { couponDiscount=0; appliedCoupon=''; msgEl.style.color='#dc2626'; msgEl.textContent=`❌ ${e.message}`; calcPrice(); }
   }
 
   async function confirmBooking() {
@@ -220,17 +255,19 @@
       alertEl.textContent = '날짜를 올바르게 입력해 주세요.'; alertEl.style.display = 'flex'; return;
     }
     const nights = Math.round((new Date(co)-new Date(ci))/(1000*60*60*24));
-    const price = nights * h.pricePerNight;
+    const price = Math.max(0, nights * h.pricePerNight - couponDiscount);
 
     const btn = document.getElementById('m-book-btn');
     btn.textContent = '처리 중...'; btn.disabled = true;
     try {
       const remaining = await deductMoney(user.uid, price);
+      if (appliedCoupon) await useCoupon(appliedCoupon);
       const booking = {
         type: 'hotel', userId: user.uid, userName: user.name,
         itemId: selectedId, title: h.name, location: h.location, category: h.category,
         checkIn: ci, checkOut: co, nights, guests,
-        pricePerNight: h.pricePerNight, price, status: '예매완료', bookedAt: Date.now()
+        pricePerNight: h.pricePerNight, coupon: appliedCoupon || null, discount: couponDiscount,
+        price, status: '예매완료', bookedAt: Date.now()
       };
       const res = await dbPush('bookings', booking);
       const newId = res.name;

@@ -68,6 +68,13 @@
     <a href="attractions.html" class="cat-card"><div class="cat-icon">🎡</div><div class="cat-name">관광</div><div class="cat-desc">아쿠아리움·동물원·<br>박물관 티켓을 예매하세요</div></a>
   </div>
 
+  <!-- 인기 예매 순위 -->
+  <div id="popular-section" style="margin-top:40px;display:none;">
+    <p class="section-title">🔥 인기 예매 순위</p>
+    <p class="section-subtitle">많은 분들이 선택한 항목이에요</p>
+    <div id="popular-list" style="display:flex;flex-direction:column;gap:8px;"></div>
+  </div>
+
   <!-- 공지사항 -->
   <div id="notices-section" style="margin-top:40px; display:none;">
     <p class="section-title">📢 공지사항</p>
@@ -101,6 +108,33 @@
         document.getElementById('money-banner').style.display='flex';
       } catch(e){}
     }
+    // 인기 예매 순위
+    try{
+      const bookings=await dbGet('bookings')||{};
+      const counts={};
+      for(const b of Object.values(bookings)){
+        if(b.status==='취소됨') continue;
+        const key=`${b.type}||${b.title}`;
+        if(!counts[key]) counts[key]={title:b.title,type:b.type,count:0};
+        counts[key].count++;
+      }
+      const sorted=Object.values(counts).sort((a,b)=>b.count-a.count).slice(0,5);
+      if(sorted.length){
+        const medals=['🥇','🥈','🥉','4','5'];
+        document.getElementById('popular-list').innerHTML=sorted.map((item,i)=>{
+          const tl=TYPE_LABELS[item.type]||{icon:'📌',label:item.type,color:'badge-gray'};
+          return `<div style="background:white;border-radius:10px;border:1px solid var(--border);padding:14px 18px;box-shadow:var(--shadow);display:flex;align-items:center;gap:14px;">
+            <div style="font-size:1.5rem;min-width:32px;text-align:center;">${medals[i]}</div>
+            <div style="flex:1;">
+              <div style="font-weight:700;font-size:.95rem;">${item.title}</div>
+              <span class="badge ${tl.color}" style="margin-top:4px;">${tl.icon} ${tl.label}</span>
+            </div>
+            <div style="font-size:.82rem;color:var(--text-muted);font-weight:600;">예매 ${item.count}건</div>
+          </div>`;
+        }).join('');
+        document.getElementById('popular-section').style.display='block';
+      }
+    } catch(e){}
     // 공지사항 로드
     try{
       const notices=await dbGet('notices');

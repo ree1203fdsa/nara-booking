@@ -24,6 +24,9 @@
     .fav-info .name{font-size:1rem;font-weight:700;margin-bottom:4px;}
     .fav-info .meta{font-size:.82rem;color:var(--text-muted);}
     .fav-actions{display:flex;gap:8px;flex-shrink:0;}
+    .star-row{display:flex;gap:6px;margin:12px 0;}
+    .star-btn{font-size:1.8rem;background:none;border:none;cursor:pointer;color:#d1d5db;transition:color .1s;padding:0;}
+    .star-btn.on{color:#f59e0b;}
   </style>
 </head>
 <body>
@@ -61,11 +64,37 @@
   </div>
 </div>
 
+<!-- 리뷰 모달 -->
+<div class="modal-overlay" id="review-modal">
+  <div class="modal" style="max-width:420px;">
+    <div class="modal-header">
+      <span class="modal-title">⭐ 리뷰 작성</span>
+      <button class="modal-close" onclick="closeReviewModal()">✕</button>
+    </div>
+    <p id="review-item-name" style="font-weight:700;color:var(--primary);margin-bottom:12px;"></p>
+    <div style="font-size:.88rem;font-weight:600;color:var(--text-muted);margin-bottom:4px;">별점</div>
+    <div class="star-row" id="star-row">
+      <button class="star-btn" onclick="setStar(1)">★</button>
+      <button class="star-btn" onclick="setStar(2)">★</button>
+      <button class="star-btn" onclick="setStar(3)">★</button>
+      <button class="star-btn" onclick="setStar(4)">★</button>
+      <button class="star-btn" onclick="setStar(5)">★</button>
+    </div>
+    <div class="form-group">
+      <label>후기</label>
+      <textarea id="review-text" rows="3" placeholder="이용 후기를 남겨주세요 (선택)" style="resize:none;width:100%;padding:10px 14px;border:1.5px solid var(--border);border-radius:8px;font-size:.95rem;outline:none;"></textarea>
+    </div>
+    <div id="review-alert" class="alert alert-error" style="display:none;"></div>
+    <button class="btn btn-accent btn-full" onclick="submitReview()">리뷰 등록</button>
+  </div>
+</div>
+
 <script src="js/config.js"></script>
 <script>
   document.getElementById('header-wrap').innerHTML = renderHeader('mybookings');
   const user = requireLogin();
   let allBookings={}, favorites={}, favData={}, currentFilter='all', cancelKey=null;
+  let reviewKey=null, reviewStar=0, myReviews={};
 
   if(user){
     document.getElementById('user-name-label').textContent=`${user.name}님의 예매 내역`;
@@ -78,8 +107,7 @@
       allBookings={};
       for(const [key,b] of Object.entries(bookings)) if(b.userId===user.uid) allBookings[key]=b;
       favorites=await getFavorites(user.uid);
-      // load actual fav item data
-      await loadFavData();
+      await Promise.all([loadFavData(), loadMyReviews()]);
       render();
     } catch{document.getElementById('content').innerHTML='<div class="alert alert-error">내역을 불러오지 못했습니다.</div>';}
   }
@@ -140,6 +168,7 @@
           <div class="booking-price">₩${b.price.toLocaleString()}</div>
           <div style="display:flex;gap:6px;flex-direction:column;align-items:flex-end;">
             <a href="confirm.html?id=${key}" class="btn btn-outline btn-sm">🎫 티켓</a>
+            ${!isCancelled?`<button class="btn btn-outline btn-sm" style="color:#f59e0b;border-color:#f59e0b;" onclick="openReviewModal('${key}')">${myReviews[key]?'✏️ 수정':'⭐ 리뷰'}</button>`:''}
             ${!isCancelled?`<button class="btn btn-danger btn-sm" onclick="openCancelModal('${key}')">취소</button>`:''}
           </div>
         </div>
@@ -214,7 +243,6 @@
     try{
       const b=allBookings[cancelKey];
       await dbSet(`bookings/${cancelKey}/status`,'취소됨');
-      // 게임 머니 환불
       try{
         const cur=await getUserMoney(user.uid);
         await dbSet(`users/${user.uid}/money`, cur+b.price);
@@ -223,6 +251,55 @@
       closeCancelModal(); render();
     } catch{ alert('취소 중 오류가 발생했습니다.'); }
     finally{ btn.textContent='취소하기'; btn.disabled=false; }
+  }
+
+  // ===== 리뷰 =====
+  async function loadMyReviews(){
+    myReviews={};
+    // bookingId를 키로 리뷰 저장: reviews/byBooking/<bookingId>/<uid>
+    for(const key of Object.keys(allBookings)){
+      const r=await dbGet(`reviews/byBooking/${key}/${encodeURIComponent(user.uid)}`);
+      if(r) myReviews[key]=r;
+    }
+  }
+
+  function openReviewModal(key){
+    reviewKey=key;
+    const b=allBookings[key];
+    const tl=TYPE_LABELS[b.type]||{};
+    document.getElementById('review-item-name').textContent=`${tl.icon||''} ${b.title}`;
+    const existing=myReviews[key];
+    setStar(existing?existing.rating:0);
+    document.getElementById('review-text').value=existing?existing.text:'';
+    document.getElementById('review-alert').style.display='none';
+    document.getElementById('review-modal').classList.add('open');
+  }
+
+  function closeReviewModal(){ document.getElementById('review-modal').classList.remove('open'); reviewKey=null; }
+
+  function setStar(n){
+    reviewStar=n;
+    document.querySelectorAll('.star-btn').forEach((btn,i)=>btn.classList.toggle('on', i<n));
+  }
+
+  async function submitReview(){
+    if(!reviewKey||!user) return;
+    if(!reviewStar){ document.getElementById('review-alert').textContent='별점을 선택해 주세요.'; document.getElementById('review-alert').style.display='flex'; return; }
+    const b=allBookings[reviewKey];
+    const text=document.getElementById('review-text').value.trim();
+    const btn=document.querySelector('#review-modal .btn-accent');
+    btn.textContent='등록 중...'; btn.disabled=true;
+    try{
+      const review={ rating:reviewStar, text, itemId:b.itemId||'', itemTitle:b.title, type:b.type, userId:user.uid, createdAt:Date.now() };
+      // 아이템별 + 예매별 동시 저장
+      await Promise.all([
+        dbSet(`reviews/byBooking/${reviewKey}/${encodeURIComponent(user.uid)}`, review),
+        b.itemId ? dbSet(`reviews/${b.type}/${b.itemId}/${encodeURIComponent(user.uid)}`, review) : Promise.resolve()
+      ]);
+      myReviews[reviewKey]=review;
+      closeReviewModal(); render();
+    } catch(e){ document.getElementById('review-alert').textContent='등록 중 오류가 발생했습니다.'; document.getElementById('review-alert').style.display='flex'; }
+    finally{ btn.textContent='리뷰 등록'; btn.disabled=false; }
   }
 </script>
 <script>if('serviceWorker'in navigator)navigator.serviceWorker.register('/sw.js');</script></body>
