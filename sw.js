@@ -1,4 +1,4 @@
-const CACHE = 'nara-v1';
+const CACHE = 'nara-v2';
 const ASSETS = [
   '/',
   '/index.html',
