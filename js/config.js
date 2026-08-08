@@ -98,18 +98,30 @@ async function registerGameUser(uid, pw) {
 function renderHeader(activePage) {
   const user = getUser();
   const navLinks = [
-    { href: 'index.html', label: '홈' },
+    { href: 'index.html', label: '🏠 홈' },
     { href: 'movies.html', label: '🎬 영화' },
     { href: 'flights.html', label: '✈️ 비행기' },
     { href: 'trains.html', label: '🚄 기차' },
     { href: 'buses.html', label: '🚌 버스' },
+    { href: 'mybookings.html', label: '📋 내 예매' },
   ];
 
   const navHTML = navLinks.map(l =>
-    `<a href="${l.href}" class="${l.href.includes(activePage) ? 'active' : ''}">${l.label}</a>`
+    `<a href="${l.href}" class="${l.href.includes(activePage) && activePage ? 'active' : ''}">${l.label}</a>`
   ).join('');
 
-  const userHTML = user
+  const mobileUserHTML = user
+    ? `<div class="mobile-user-row">
+        <span class="mobile-username">👤 ${user.name}님</span>
+        ${user.isAdmin ? `<a href="admin.html" class="mobile-nav-link accent">⚙️ 관리자</a>` : ''}
+        <button class="btn-logout" onclick="logout()">로그아웃</button>
+       </div>`
+    : `<div class="mobile-user-row">
+        <a href="login.html" class="mobile-nav-link">로그인</a>
+        <a href="register.html" class="btn btn-accent btn-sm">회원가입</a>
+       </div>`;
+
+  const desktopUserHTML = user
     ? `<div class="nav-user">
         <span>${user.name}님</span>
         <a href="mybookings.html" style="color:rgba(255,255,255,.85);text-decoration:none;font-size:.85rem;">내 예매</a>
@@ -124,9 +136,26 @@ function renderHeader(activePage) {
   return `
     <header>
       <a href="index.html" class="logo">🏛️ 나라<span>예매</span></a>
-      <nav>${navHTML}</nav>
-      ${userHTML}
-    </header>`;
+      <nav class="desktop-nav">${navHTML}</nav>
+      ${desktopUserHTML}
+      <button class="nav-toggle" onclick="toggleMobileNav()" aria-label="메뉴">
+        <span></span><span></span><span></span>
+      </button>
+    </header>
+    <div class="mobile-nav-overlay" id="mobile-nav" onclick="closeMobileNav()">
+      <div class="mobile-nav-panel" onclick="event.stopPropagation()">
+        <div class="mobile-nav-header">
+          <span class="logo" style="font-size:1.1rem;">🏛️ 나라<span style="color:var(--accent)">예매</span></span>
+          <button class="mobile-nav-close" onclick="closeMobileNav()">✕</button>
+        </div>
+        <nav class="mobile-nav-links">${navHTML}</nav>
+        ${mobileUserHTML}
+      </div>
+    </div>
+    <script>
+      function toggleMobileNav(){document.getElementById('mobile-nav').classList.toggle('open');}
+      function closeMobileNav(){document.getElementById('mobile-nav').classList.remove('open');}
+    </script>`;
 }
 
 // ===== 날짜 포맷 =====
